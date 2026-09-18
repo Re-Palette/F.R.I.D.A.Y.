@@ -22,19 +22,21 @@ What exists today:
 - Single-user auth (Auth.js v5, Google OAuth, gated by `ALLOWED_EMAIL`).
 - Provider-agnostic LLM layer (`src/lib/llm/`) with a model router that
   maps task kinds to cost tiers (low/standard/high), currently backed by
-  Anthropic.
+  **OpenAI** (Responses API — see `src/lib/llm/openai.ts`). The abstraction
+  (`LLMProvider`, generic `ContentBlock`s) is what lets the provider be
+  swapped later without touching any Agent code — Claude Code itself is
+  only the dev tool building this app; it is not the app's own LLM Provider.
 - **Agent Loop** (`src/lib/agents/loop.ts`): the Main Agent's
   Observe→Plan→Act→Evaluate loop, bounded by step/timeout/token/cost
   guardrails and recorded to `agent_runs`. Delegation to sub-agents happens
-  through tool calls (Anthropic's orchestrator-worker pattern), not a
-  separate hardcoded router.
+  through tool calls (an orchestrator-worker pattern), not a separate
+  hardcoded router.
   - **Planning Agent** (`create_plan` tool) — decomposes a goal into
     subtasks, including work the user didn't explicitly ask for but that's
     genuinely needed (derived tasks), and persists them to `tasks`/`subtasks`.
-  - **Research Agent** — uses Anthropic's server-side `web_search` /
-    `web_fetch` tools (real page fetches, not just search snippets); every
-    URL touched is persisted to `sources`. No extra API key needed beyond
-    `ANTHROPIC_API_KEY`.
+  - **Research Agent** — uses OpenAI's server-side `web_search` tool (real
+    page fetches, not just search snippets); every URL touched is persisted
+    to `sources`. No extra API key needed beyond `OPENAI_API_KEY`.
   - **Creation Agent** (`create_document` tool) — drafts a document, runs a
     self-verification pass (heuristics + an LLM checklist review) before
     saving, and only persists to `documents` once it passes.
@@ -55,7 +57,13 @@ scheduler/worker, and voice — these follow in Phases 4–8.
 1. `pnpm install`
 2. Copy `.env.example` to `.env.local` and fill in:
    - `DATABASE_URL` — a Neon Postgres connection string.
-   - `ANTHROPIC_API_KEY`.
+   - `OPENAI_API_KEY`. The model router's default model IDs
+     (`OPENAI_FAST_MODEL`/`OPENAI_CHAT_MODEL`/`OPENAI_REASONING_MODEL`) come
+     from the installed OpenAI SDK's own type definitions, not a live docs
+     check — this dev sandbox's network policy blocks platform.openai.com.
+     Confirm current model IDs/pricing at
+     https://platform.openai.com/docs/models and override via env vars if
+     they've changed.
    - `AUTH_SECRET` (`npx auth secret`), `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`
      from a Google OAuth client.
    - `ALLOWED_EMAIL` — the only account permitted to sign in.

@@ -1,4 +1,4 @@
-import { AnthropicProvider } from "./anthropic";
+import { OpenAIProvider } from "./openai";
 import type { LLMProvider } from "./types";
 
 export type ModelTier = "low" | "standard" | "high";
@@ -24,17 +24,34 @@ const TASK_TIER: Record<TaskKind, ModelTier> = {
   verification: "standard",
 };
 
+/**
+ * Model IDs are never hardcoded into Agent code — only here, and only as
+ * env-overridable defaults. The defaults below are OpenAI's current
+ * generation as reported by the installed `openai` SDK's own type
+ * definitions (its ChatModel union) at implementation time — this sandbox's
+ * network policy blocks platform.openai.com, so they could not be
+ * cross-checked against the live pricing/models pages. Verify against
+ * https://platform.openai.com/docs/models before relying on this in
+ * production and override via env vars if anything has moved on.
+ */
 const TIER_MODEL: Record<ModelTier, string> = {
-  low: process.env.MODEL_LOW ?? "claude-haiku-4-5",
-  standard: process.env.MODEL_STANDARD ?? "claude-sonnet-5",
-  high: process.env.MODEL_HIGH ?? "claude-opus-5",
+  low: process.env.OPENAI_FAST_MODEL ?? "gpt-5.6-luna",
+  standard: process.env.OPENAI_CHAT_MODEL ?? "gpt-5.6-terra",
+  high: process.env.OPENAI_REASONING_MODEL ?? "gpt-5.6-sol",
 };
 
-let anthropicProvider: LLMProvider | null = null;
+/**
+ * Dev/cost override (Master Brief "Development Mode"): set
+ * FORCE_MODEL_TIER=low to route every call through the cheapest model
+ * regardless of task, with no code change — for cheap end-to-end testing.
+ */
+const FORCE_TIER = process.env.FORCE_MODEL_TIER as ModelTier | undefined;
 
-function getAnthropicProvider(): LLMProvider {
-  if (!anthropicProvider) anthropicProvider = new AnthropicProvider();
-  return anthropicProvider;
+let openaiProvider: LLMProvider | null = null;
+
+function getOpenAIProvider(): LLMProvider {
+  if (!openaiProvider) openaiProvider = new OpenAIProvider();
+  return openaiProvider;
 }
 
 export interface RoutedModel {
@@ -45,14 +62,13 @@ export interface RoutedModel {
 
 /**
  * Resolve which provider + model to use for a given task kind. Today this
- * always resolves to Anthropic; the indirection is what lets §16's
- * "switch providers/local model per task" goal happen later without
- * touching any Agent code.
+ * always resolves to OpenAI; the indirection is what lets a future
+ * provider switch or a local model happen without touching any Agent code.
  */
 export function routeModel(kind: TaskKind, overrideTier?: ModelTier): RoutedModel {
-  const tier = overrideTier ?? TASK_TIER[kind];
+  const tier = overrideTier ?? FORCE_TIER ?? TASK_TIER[kind];
   return {
-    provider: getAnthropicProvider(),
+    provider: getOpenAIProvider(),
     model: TIER_MODEL[tier],
     tier,
   };

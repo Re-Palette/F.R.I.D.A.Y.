@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
       try {
         // The Agent Loop may call tools across several model turns, so it
         // resolves to a complete answer rather than a token stream (see
-        // AnthropicProvider.stream()'s tool limitation). We replay it to the
+        // OpenAIProvider.stream()'s tool limitation). We replay it to the
         // client in small chunks to keep the existing typewriter UX.
         fullText = await runMainAgentTurn(user.id, conversationId, llmHistory);
         for (let i = 0; i < fullText.length; i += CHUNK_CHARS) {

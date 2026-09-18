@@ -63,7 +63,7 @@ async function persistDiscoveredSources(content: ContentBlock[]) {
 /**
  * The Main Agent's Agent Loop (Master Brief §6): Observe → Plan → Act →
  * Observe Result → Evaluate → Continue/Retry → Complete. "Plan/Act" here is
- * Claude's own tool-use decision (Anthropic's orchestrator pattern) —
+ * the model's own tool-use decision (an orchestrator-worker pattern) —
  * delegation to Planning/Research/Creation happens via the tools it's
  * given, not a separate hardcoded router. Guardrails bound the whole run.
  */

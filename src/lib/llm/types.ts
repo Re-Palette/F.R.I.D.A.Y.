@@ -3,9 +3,9 @@ export type LLMRole = "user" | "assistant" | "system";
 /**
  * Provider-agnostic content blocks. Only the shapes every provider needs to
  * share (text, our own custom tool calls/results) are modeled explicitly.
- * Anything provider-specific (e.g. Anthropic's server-side web_search
- * result blocks) round-trips as `opaque` so it can still be echoed back on
- * the next turn without this layer having to model every vendor's schema.
+ * Anything provider-specific (e.g. a vendor's server-side web_search result
+ * item) round-trips as `opaque` so it can still be echoed back on the next
+ * turn without this layer having to model every vendor's schema.
  */
 export type ContentBlock =
   | { type: "text"; text: string }
@@ -40,7 +40,7 @@ export interface CompleteParams {
   /**
    * Capability flag, not a provider-specific tool type: "give this call the
    * ability to search and read the live web." Each provider maps it to
-   * whatever mechanism it has (Anthropic: server-side web_search/web_fetch).
+   * whatever mechanism it has (OpenAI: the server-side web_search tool).
    */
   enableWebSearch?: boolean;
   maxTokens?: number;
