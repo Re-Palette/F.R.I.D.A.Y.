@@ -49,3 +49,12 @@ export function passcodeMatches(candidate: string): boolean {
   if (!passcode) return false;
   return secureEqual(candidate, passcode);
 }
+
+/**
+ * Failed attempts are counted over a sliding window, which is what makes a
+ * passcode a person can remember safe here: ten tries per quarter hour is
+ * roughly a thousand guesses a day, so even a modest wordlist takes
+ * centuries, while a typo or two costs nothing.
+ */
+export const ATTEMPT_WINDOW_MINUTES = 15;
+export const MAX_ATTEMPTS_PER_WINDOW = 10;

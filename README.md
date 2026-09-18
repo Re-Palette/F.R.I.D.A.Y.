@@ -30,8 +30,11 @@ What exists today:
   inert until you opt in. Unlocking stores an HMAC of the passcode in a
   long-lived HttpOnly cookie, so it is asked once per browser — an
   installed PWA, or a tab left open, is never interrupted later. Changing
-  the passcode invalidates every device at once. Note there is no rate
-  limiting behind it, so the passcode needs to be long and random.
+  the passcode invalidates every device at once. Failed attempts are rate
+  limited in Postgres (10 per 15 minutes, global — the counter has to be
+  shared state, since parallel serverless invocations would sail straight
+  past an in-process one), which is what makes a passcode a person can
+  remember safe rather than requiring a random string.
 - **Installable** (`src/app/manifest.ts`): Chrome offers a real install, and
   the app opens in its own window with no address bar.
 - Provider-agnostic LLM layer (`src/lib/llm/`) backed by **Anthropic Claude**
@@ -192,7 +195,7 @@ useful without `DATABASE_URL`/`ANTHROPIC_API_KEY` set.
 - `pnpm dev` / `pnpm build` / `pnpm start`
 - `pnpm lint`
 - `pnpm db:generate` — generate SQL migrations from the Drizzle schema
-  (offline; needs no database connection)
+  (offline; reads `.env.local` but never opens a connection)
 - `pnpm db:migrate` — enable pgvector and apply migrations to `DATABASE_URL`
 - `pnpm db:studio` — browse the database
 - `pnpm calendar:get-token` — one-time local OAuth flow to print a Google
