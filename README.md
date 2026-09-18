@@ -129,6 +129,12 @@ What exists today:
   with no login, whoever can reach the URL can also approve. It stops the
   agent acting unilaterally; it does not decide who may act.
 
+  - **Google Drive** (`search_drive`, `read_drive_file`) and **GitHub**
+    (`github`) — both read-only, so neither needs the Approval Queue.
+    Drive exports Docs/Sheets/Slides as text and says so rather than
+    decoding binary formats; GitHub lists repositories, a repo's open
+    issues/PRs, or its recent commits, and takes a personal access token
+    instead of an OAuth flow.
 - **Memory** (`src/lib/agents/memory.ts`, `remember` tool): what FRIDAY
   learns about the user survives the conversation. The model saves a fact
   as part of a turn it's already taking, so remembering costs no extra LLM
@@ -139,9 +145,11 @@ What exists today:
   `memories.embedding` column and its HNSW index stay unused until it
   doesn't — only `recallMemories()` would change.
 
-Not yet built: Schedule/Social/Browser agents, remaining tool integrations
-(Drive/Instagram/GitHub), research caching, background scheduler/worker,
-and voice — these follow in Phases 5–8.
+Not yet built: Schedule/Social/Browser agents, research caching, background
+scheduler/worker, and voice — these follow in Phases 5–8. Instagram is
+deliberately not on that list: its API needs a Business/Creator account
+linked to a Facebook Page and an app review for anything beyond your own
+media, which is a lot of setup for little a personal agent can use.
 
 ## Setup
 

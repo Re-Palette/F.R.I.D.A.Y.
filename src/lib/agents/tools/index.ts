@@ -3,6 +3,8 @@ import { createPlanTool } from "./create-plan";
 import { createDocumentTool } from "./create-document";
 import { getCalendarEventsTool } from "./get-calendar-events";
 import { createEmailDraftTool, readEmailTool, searchEmailTool, sendEmailTool } from "./email";
+import { readDriveFileTool, searchDriveTool } from "./drive";
+import { githubTool } from "./github";
 import { rememberTool } from "./remember";
 import type { ToolDefinition } from "./types";
 
@@ -14,6 +16,9 @@ export const TOOLS: ToolDefinition[] = [
   readEmailTool,
   createEmailDraftTool,
   sendEmailTool,
+  searchDriveTool,
+  readDriveFileTool,
+  githubTool,
   rememberTool,
 ];
 
