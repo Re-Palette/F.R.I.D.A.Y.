@@ -182,9 +182,12 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<AgentLoopRe
     await finish("succeeded");
     return { finalText, steps };
   } catch (err) {
+    // The reason used to be discarded entirely — not logged, not returned —
+    // leaving a generic apology as the only evidence that anything broke.
+    console.error("Agent loop failed:", err);
     await finish(err instanceof AgentLoopLimitError && err.reason === "timeout" ? "timed_out" : "failed");
     return {
-      finalText: "（エラーにより処理を中断しました。もう一度お試しください）",
+      finalText: `（エラーにより処理を中断しました: ${err instanceof Error ? err.message : String(err)}）`,
       steps,
     };
   }
