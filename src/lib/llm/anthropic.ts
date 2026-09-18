@@ -21,7 +21,7 @@ export class AnthropicProvider implements LLMProvider {
   async complete(params: CompleteParams): Promise<CompleteResult> {
     const { model, system, messages, tools, enableWebSearch, maxTokens = 4096, temperature } = params;
 
-    const anthropicTools = buildAnthropicTools(tools, enableWebSearch);
+    const anthropicTools = buildAnthropicTools(tools, enableWebSearch, model);
 
     const response = await this.client.messages.create({
       model,
@@ -72,7 +72,27 @@ export class AnthropicProvider implements LLMProvider {
   }
 }
 
-function buildAnthropicTools(tools: CompleteParams["tools"], enableWebSearch?: boolean) {
+// The dynamic-filtering server tools only run on Opus 4.6+, Sonnet 4.6+ and
+// Fable. Naming them alongside any other model makes the API reject the
+// whole request, which matters here because the router deliberately sends
+// ordinary chat to the cheapest tier (Haiku) — that model needs the basic
+// variants instead.
+const DYNAMIC_FILTERING_MODELS = [
+  "claude-opus-4-6",
+  "claude-opus-4-7",
+  "claude-opus-4-8",
+  "claude-opus-5",
+  "claude-sonnet-4-6",
+  "claude-sonnet-5",
+  "claude-fable-5",
+  "claude-mythos-5",
+];
+
+function buildAnthropicTools(
+  tools: CompleteParams["tools"],
+  enableWebSearch: boolean | undefined,
+  model: string
+) {
   const custom: Anthropic.Messages.ToolUnion[] = (tools ?? []).map((t) => ({
     name: t.name,
     description: t.description,
@@ -84,10 +104,20 @@ function buildAnthropicTools(tools: CompleteParams["tools"], enableWebSearch?: b
   // Anthropic-hosted server tools: search + fetch run entirely on
   // Anthropic's infrastructure and their results arrive as content blocks
   // in the same response, no client execution needed (see research agent).
+  const dynamic = DYNAMIC_FILTERING_MODELS.some((m) => model.startsWith(m));
+
   return [
     ...custom,
-    { type: "web_search_20260209", name: "web_search", max_uses: 5 },
-    { type: "web_fetch_20260209", name: "web_fetch", max_uses: 5 },
+    {
+      type: dynamic ? "web_search_20260209" : "web_search_20250305",
+      name: "web_search",
+      max_uses: 5,
+    },
+    {
+      type: dynamic ? "web_fetch_20260209" : "web_fetch_20250910",
+      name: "web_fetch",
+      max_uses: 5,
+    },
   ] as Anthropic.Messages.ToolUnion[];
 }
 
