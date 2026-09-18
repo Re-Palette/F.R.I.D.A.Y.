@@ -26,7 +26,7 @@ export function HomeHero() {
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function handleSubmit(value: string) {
+  async function handleSubmit(value: string, options?: { viaVoice?: boolean }) {
     setStarting(true);
     setError(null);
     try {
@@ -37,6 +37,9 @@ export function HomeHero() {
       }
       const { id } = (await res.json()) as { id: string };
       sessionStorage.setItem(`friday:pending:${id}`, value);
+      // Carried across the navigation so a question asked out loud here is
+      // still answered out loud on the screen that actually sends it.
+      if (options?.viaVoice) sessionStorage.setItem(`friday:pending-voice:${id}`, "1");
       router.push(`/chat/${id}`);
     } catch (err) {
       // Silently resetting here meant a failed start looked identical to

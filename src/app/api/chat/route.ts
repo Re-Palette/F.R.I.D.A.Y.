@@ -6,9 +6,14 @@ import { conversations, messages } from "@/lib/db/schema";
 import { runMainAgentTurn } from "@/lib/agents/main-agent";
 import type { LLMMessage } from "@/lib/llm/types";
 
-// Chunk size/delay for the fake-typewriter effect below.
-const CHUNK_CHARS = 6;
-const CHUNK_DELAY_MS = 12;
+/**
+ * There was a fake typewriter here — the finished answer replayed six
+ * characters at a time with a 12ms pause between them. On a typical reply
+ * that spent half a second of real waiting to imitate an effect the answer
+ * was already past: the Agent Loop resolves to complete text, so nothing
+ * was actually being generated during the pauses. Spoken replies paid it
+ * twice over, since nothing could be read aloud until the replay finished.
+ */
 
 export async function POST(req: NextRequest) {
   try {
@@ -45,23 +50,25 @@ async function handleChat(req: NextRequest) {
   // The opening message is what the conversation is about, so it names it —
   // derived here rather than asked of a model, which would be a whole extra
   // call to label something the user already wrote.
-  if (!conversation.title) {
-    const title = content.trim().replace(/\s+/g, " ").slice(0, 60);
-    if (title) {
-      await db.update(conversations).set({ title }).where(eq(conversations.id, conversationId));
-    }
-  }
+  const title = conversation.title
+    ? undefined
+    : content.trim().replace(/\s+/g, " ").slice(0, 60) || undefined;
 
-  await db
-    .update(conversations)
-    .set({ updatedAt: new Date() })
-    .where(eq(conversations.id, conversationId));
-
-  const history = await db
-    .select()
-    .from(messages)
-    .where(eq(messages.conversationId, conversationId))
-    .orderBy(asc(messages.createdAt));
+  // Both of these are round trips to Neon, and the user is waiting through
+  // every one of them before the model is even asked. Touching the
+  // conversation doesn't affect which messages come back, so it need not be
+  // waited for first — and the title and timestamp are one write, not two.
+  const [history] = await Promise.all([
+    db
+      .select()
+      .from(messages)
+      .where(eq(messages.conversationId, conversationId))
+      .orderBy(asc(messages.createdAt)),
+    db
+      .update(conversations)
+      .set({ updatedAt: new Date(), ...(title ? { title } : {}) })
+      .where(eq(conversations.id, conversationId)),
+  ]);
 
   const llmHistory: LLMMessage[] = history.map((m) => ({
     role: m.role === "tool" ? "assistant" : m.role,
@@ -75,14 +82,10 @@ async function handleChat(req: NextRequest) {
       let fullText = "";
       try {
         // The Agent Loop may call tools across several model turns, so it
-        // resolves to a complete answer rather than a token stream (see
-        // OpenAIProvider.stream()'s tool limitation). We replay it to the
-        // client in small chunks to keep the existing typewriter UX.
+        // resolves to a complete answer rather than a token stream. Sent the
+        // moment it exists.
         fullText = await runMainAgentTurn(user.id, conversationId, llmHistory);
-        for (let i = 0; i < fullText.length; i += CHUNK_CHARS) {
-          controller.enqueue(encoder.encode(fullText.slice(i, i + CHUNK_CHARS)));
-          if (CHUNK_DELAY_MS) await new Promise((r) => setTimeout(r, CHUNK_DELAY_MS));
-        }
+        controller.enqueue(encoder.encode(fullText));
       } catch (err) {
         // Without this, a thrown error here just closes the stream with
         // nothing ever enqueued — the client reads a clean "done" with an

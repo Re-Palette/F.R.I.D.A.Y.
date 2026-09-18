@@ -26,7 +26,7 @@ export function ChatView({ conversationId, initialMessages }: ChatViewProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const sentPendingRef = useRef(false);
 
-  async function send(content: string) {
+  async function send(content: string, options?: { viaVoice?: boolean }) {
     setMessages((prev) => [...prev, { id: crypto.randomUUID(), role: "user", content }]);
     setPending(true);
 
@@ -58,7 +58,9 @@ export function ChatView({ conversationId, initialMessages }: ChatViewProps) {
       }
       // Spoken once the answer is whole: the stream arrives in small chunks
       // for the typewriter effect, and speaking those would stutter.
-      if (speakReplies) speak(acc);
+      // A spoken question gets a spoken answer whether or not the
+      // toggle is on: that is what asking out loud means.
+      if (speakReplies || options?.viaVoice) speak(acc);
     } catch (err) {
       console.error("Chat request failed:", err);
       setMessages((prev) =>
@@ -76,11 +78,14 @@ export function ChatView({ conversationId, initialMessages }: ChatViewProps) {
   useEffect(() => {
     if (sentPendingRef.current) return;
     const key = `friday:pending:${conversationId}`;
+    const voiceKey = `friday:pending-voice:${conversationId}`;
     const pendingMessage = sessionStorage.getItem(key);
     if (pendingMessage) {
+      const viaVoice = sessionStorage.getItem(voiceKey) === "1";
       sentPendingRef.current = true;
       sessionStorage.removeItem(key);
-      queueMicrotask(() => void send(pendingMessage));
+      sessionStorage.removeItem(voiceKey);
+      queueMicrotask(() => void send(pendingMessage, { viaVoice }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId]);

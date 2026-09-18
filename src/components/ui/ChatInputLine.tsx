@@ -5,7 +5,8 @@ import { cn } from "@/lib/cn";
 import { useSpeechInput } from "@/lib/speech";
 
 interface ChatInputLineProps {
-  onSubmit: (value: string) => void;
+  /** `viaVoice` marks a turn that was spoken, so the reply can be spoken back. */
+  onSubmit: (value: string, options?: { viaVoice?: boolean }) => void;
   disabled?: boolean;
   placeholder?: string;
 }
@@ -17,11 +18,18 @@ interface ChatInputLineProps {
 export function ChatInputLine({ onSubmit, disabled, placeholder }: ChatInputLineProps) {
   const [value, setValue] = useState("");
 
-  // Dictation lands in the field rather than sending: a misheard word is
-  // trivial to fix before submitting and awkward to take back afterwards.
-  const speech = useSpeechInput((text) =>
-    setValue((current) => (current ? `${current} ${text}` : text))
-  );
+  // Speaking sends. Talking to something that only fills in a box and waits
+  // for a keypress isn't a conversation, which is the point of the
+  // microphone; anything consequential the reply leads to still stops at the
+  // Approval Queue. Typing is unchanged — it submits when you say so.
+  const speech = useSpeechInput((text) => {
+    if (disabled) {
+      setValue((current) => (current ? `${current} ${text}` : text));
+      return;
+    }
+    setValue("");
+    onSubmit(text, { viaVoice: true });
+  });
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
