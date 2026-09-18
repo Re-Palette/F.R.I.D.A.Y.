@@ -17,14 +17,12 @@ export async function POST(req: NextRequest) {
     // Everything above the stream — reading the body, loading the user,
     // the history queries — used to throw straight out of the handler,
     // which Next turns into a 500 with an empty body. The client then reads
-    // a response with nothing in it and shows nothing at all.
+    // a response with nothing in it and shows nothing at all. The detail
+    // belongs in the server log, not in a response this deployment serves
+    // without a login.
     console.error("Chat request failed before streaming:", err);
-    return new Response(errorMessage(err), { status: 500 });
+    return new Response("リクエストを処理できませんでした。", { status: 500 });
   }
-}
-
-function errorMessage(err: unknown) {
-  return err instanceof Error ? err.message : String(err);
 }
 
 async function handleChat(req: NextRequest) {
@@ -77,7 +75,7 @@ async function handleChat(req: NextRequest) {
         // something over the stream instead of failing silently, and don't
         // persist it as a real assistant turn.
         console.error("Agent turn failed:", err);
-        controller.enqueue(encoder.encode(`（エラー: ${errorMessage(err)}）`));
+        controller.enqueue(encoder.encode("（エラーが発生しました。もう一度お試しください）"));
       } finally {
         if (fullText) {
           await db.insert(messages).values({ conversationId, role: "assistant", content: fullText });

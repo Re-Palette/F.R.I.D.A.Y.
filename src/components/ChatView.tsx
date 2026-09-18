@@ -53,9 +53,13 @@ export function ChatView({ conversationId, initialMessages }: ChatViewProps) {
         );
       }
     } catch (err) {
-      const detail = err instanceof Error ? err.message : String(err);
+      console.error("Chat request failed:", err);
       setMessages((prev) =>
-        prev.map((m) => (m.id === assistantId ? { ...m, content: `（エラー: ${detail}）` } : m))
+        prev.map((m) =>
+          m.id === assistantId
+            ? { ...m, content: "（エラーが発生しました。もう一度お試しください）" }
+            : m
+        )
       );
     } finally {
       setPending(false);

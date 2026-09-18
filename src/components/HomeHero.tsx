@@ -39,7 +39,8 @@ export function HomeHero() {
     } catch (err) {
       // Silently resetting here meant a failed start looked identical to
       // nothing happening: the input just became editable again.
-      setError(err instanceof Error ? err.message : String(err));
+      console.error("Failed to start a conversation:", err);
+      setError("起動に失敗しました。もう一度お試しください。");
       setStarting(false);
     }
   }
@@ -91,9 +92,7 @@ export function HomeHero() {
           placeholder={starting ? "起動中…" : "何を手伝いましょうか？"}
         />
         {error && (
-          <p className="mt-3 text-center text-[11px] text-fg-muted">
-            起動に失敗しました: {error}
-          </p>
+          <p className="mt-3 text-center text-[11px] text-fg-muted">{error}</p>
         )}
       </div>
 

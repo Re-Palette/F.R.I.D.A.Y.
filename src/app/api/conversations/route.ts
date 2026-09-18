@@ -12,11 +12,9 @@ export async function POST() {
     // An uncaught throw here becomes a 500 with an empty body, which the
     // caller cannot tell apart from a successful-but-empty response — the
     // reason a failure on this route looked like the app doing nothing at
-    // all. Return the reason instead.
+    // all. The detail goes to the server log; this deployment has no login,
+    // so the response says only that it failed.
     console.error("Failed to create conversation:", err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : String(err) },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "会話を開始できませんでした。" }, { status: 500 });
   }
 }
