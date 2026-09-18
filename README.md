@@ -210,6 +210,11 @@ media, which is a lot of setup for little a personal agent can use.
      one-time setup (`pnpm calendar:get-token`), including how to add a
      second account as `GOOGLE_CALENDAR_REFRESH_TOKEN_2`. Without these,
      calendar questions just get told it's not connected.
+   - `ELEVENLABS_API_KEY`/`ELEVENLABS_VOICE_ID` — optional; the voice the
+     home screen answers in. Unset, it uses the browser's own speech
+     synthesis instead, and it falls back to that whenever ElevenLabs fails
+     or the quota runs out. See `.env.example` for where to design a voice
+     and find its ID.
 3. Create the tables (only needed for local dev against a real DB — Vercel
    does this automatically on deploy, see below). `db:migrate` enables
    pgvector and applies the migrations in one step:
