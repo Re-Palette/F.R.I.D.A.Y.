@@ -42,6 +42,21 @@ async function handleChat(req: NextRequest) {
 
   await db.insert(messages).values({ conversationId, role: "user", content });
 
+  // The opening message is what the conversation is about, so it names it —
+  // derived here rather than asked of a model, which would be a whole extra
+  // call to label something the user already wrote.
+  if (!conversation.title) {
+    const title = content.trim().replace(/\s+/g, " ").slice(0, 60);
+    if (title) {
+      await db.update(conversations).set({ title }).where(eq(conversations.id, conversationId));
+    }
+  }
+
+  await db
+    .update(conversations)
+    .set({ updatedAt: new Date() })
+    .where(eq(conversations.id, conversationId));
+
   const history = await db
     .select()
     .from(messages)

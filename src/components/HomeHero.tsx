@@ -99,12 +99,14 @@ export function HomeHero() {
 
       <footer className="flex items-center justify-between pt-4 text-[10px] text-fg-faint">
         <span>F.R.I.D.A.Y. / v1.0.0</span>
-        <Link
-          href="/approvals"
-          className="tracking-[var(--tracking-wider)] hover:text-fg-muted"
-        >
-          承認待ち
-        </Link>
+        <nav className="flex gap-4 tracking-[var(--tracking-wider)]">
+          <Link href="/chat" className="hover:text-fg-muted">
+            会話履歴
+          </Link>
+          <Link href="/approvals" className="hover:text-fg-muted">
+            承認待ち
+          </Link>
+        </nav>
       </footer>
     </div>
   );

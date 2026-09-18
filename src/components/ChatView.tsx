@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { ChatInputLine } from "@/components/ui/ChatInputLine";
 import { Panel } from "@/components/ui/Panel";
@@ -84,13 +85,23 @@ export function ChatView({ conversationId, initialMessages }: ChatViewProps) {
 
   return (
     <div className="flex flex-1 flex-col px-6 py-6 sm:px-12">
-      <header className="mb-6 flex items-center gap-3">
-        <span className="flex h-6 w-6 items-center justify-center rounded-full border border-border-strong text-[10px] text-accent">
-          F
-        </span>
-        <span className="text-[10px] tracking-[var(--tracking-wider)] text-fg-muted">
-          F.R.I.D.A.Y.
-        </span>
+      <header className="mb-6 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <span className="flex h-6 w-6 items-center justify-center rounded-full border border-border-strong text-[10px] text-accent">
+            F
+          </span>
+          <span className="text-[10px] tracking-[var(--tracking-wider)] text-fg-muted">
+            F.R.I.D.A.Y.
+          </span>
+        </div>
+        <nav className="flex gap-4 text-[10px] tracking-[var(--tracking-wider)] text-fg-faint">
+          <Link href="/chat" className="hover:text-fg-muted">
+            履歴
+          </Link>
+          <Link href="/" className="hover:text-fg-muted">
+            HOME
+          </Link>
+        </nav>
       </header>
 
       <div className="flex-1 space-y-4 overflow-y-auto">

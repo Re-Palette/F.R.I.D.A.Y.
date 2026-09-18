@@ -1,7 +1,30 @@
 import { NextResponse } from "next/server";
+import { desc, eq } from "drizzle-orm";
 import { getCurrentUser } from "@/lib/auth/current-user";
 import { db } from "@/lib/db/client";
 import { conversations } from "@/lib/db/schema";
+
+export const dynamic = "force-dynamic";
+
+export async function GET() {
+  try {
+    const user = await getCurrentUser();
+    const rows = await db
+      .select({
+        id: conversations.id,
+        title: conversations.title,
+        updatedAt: conversations.updatedAt,
+      })
+      .from(conversations)
+      .where(eq(conversations.userId, user.id))
+      .orderBy(desc(conversations.updatedAt))
+      .limit(100);
+    return NextResponse.json({ conversations: rows });
+  } catch (err) {
+    console.error("Failed to list conversations:", err);
+    return NextResponse.json({ error: "会話一覧を取得できませんでした。" }, { status: 500 });
+  }
+}
 
 export async function POST() {
   try {
