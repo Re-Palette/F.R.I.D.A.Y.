@@ -79,8 +79,6 @@ export interface CalendarEvent {
   end: string;
   allDay: boolean;
   location?: string;
-  /** Which calendar it came from — set only for calendars other than the primary one. */
-  calendar?: string;
 }
 
 interface CalendarRef {
@@ -120,7 +118,6 @@ async function listCalendars(token: string): Promise<CalendarRef[]> {
 async function listCalendarEvents(
   token: string,
   cal: CalendarRef,
-  isDefaultAccount: boolean,
   timeMin: string,
   timeMax: string
 ): Promise<CalendarEvent[]> {
@@ -153,9 +150,6 @@ async function listCalendarEvents(
     end: item.end?.dateTime ?? item.end?.date ?? "",
     allDay: !item.start?.dateTime,
     location: item.location,
-    // A second account's own calendar is named after that account, so
-    // labelling it is what makes "whose calendar is this?" answerable.
-    calendar: cal.primary && isDefaultAccount ? undefined : cal.summary,
   }));
 }
 
@@ -167,7 +161,6 @@ function startsAt(e: CalendarEvent): number {
 
 async function listAccountEvents(
   refreshToken: string,
-  isDefaultAccount: boolean,
   timeMin: string,
   timeMax: string
 ): Promise<CalendarEvent[]> {
@@ -177,7 +170,7 @@ async function listAccountEvents(
   const perCalendar = await Promise.all(
     calendars.map(async (cal) => {
       try {
-        return await listCalendarEvents(token, cal, isDefaultAccount, timeMin, timeMax);
+        return await listCalendarEvents(token, cal, timeMin, timeMax);
       } catch (err) {
         // One calendar the token can list but not read shouldn't blank out
         // the rest of the day's answer.
@@ -199,7 +192,7 @@ export async function listEvents(timeMin: string, timeMax: string): Promise<Cale
   if (!tokens.length) throw new Error("Google Calendar is not configured. See .env.example.");
 
   const settled = await Promise.allSettled(
-    tokens.map((refreshToken, i) => listAccountEvents(refreshToken, i === 0, timeMin, timeMax))
+    tokens.map((refreshToken) => listAccountEvents(refreshToken, timeMin, timeMax))
   );
 
   settled.forEach((result, i) => {
@@ -270,9 +263,8 @@ function localParts(iso: string) {
 }
 
 export function formatEventLine(e: CalendarEvent): string {
-  const source = e.calendar ? `［${e.calendar}］` : "";
   const where = e.location ? ` @ ${e.location}` : "";
-  if (e.allDay) return `- ${e.title}（終日）${where}${source}`;
+  if (e.allDay) return `- ${e.title}（終日）${where}`;
 
   const start = localParts(e.start);
   const end = e.end ? localParts(e.end) : null;
@@ -285,5 +277,5 @@ export function formatEventLine(e: CalendarEvent): string {
       ? `${start.monthDay} ${start.time} 〜 ${end.monthDay} ${end.time}`
       : start.time;
 
-  return `- ${when} ${e.title}${where}${source}`;
+  return `- ${when} ${e.title}${where}`;
 }
