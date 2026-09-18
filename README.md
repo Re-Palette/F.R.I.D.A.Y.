@@ -170,8 +170,22 @@ What exists today:
   get right and for the user to read back. Only the dispatcher uses
   `CRON_SECRET`; managing tasks from `/tasks` stays behind the passcode.
 
-Not yet built: Social/Browser agents, research caching, and voice — these
-follow in Phases 5–8. Instagram is
+- **Voice** (`src/lib/speech.ts`): a microphone in the input line dictates
+  into the field, and replies can be read aloud from a toggle in the chat
+  header that each browser remembers. Both use the browser's own speech
+  APIs — Anthropic has no speech endpoint, so anything else would mean a
+  third paid provider and a third key, the same trade the memory store
+  faced. The cost is uneven support, so both are behind feature detection
+  (via `useSyncExternalStore`, since the server has no `window` and
+  resolving it during render would disagree with the client's markup): the
+  controls appear only where they work, because an inert microphone is
+  worse than none. Dictation fills the field rather than sending — a
+  misheard word is trivial to fix before submitting and awkward to take
+  back after. A wake word is not possible from a web app: the page has to
+  be open for the browser to listen at all.
+
+Not yet built: Social/Browser agents and research caching — these follow in
+Phases 5–8. Instagram is
 deliberately not on that list: its API needs a Business/Creator account
 linked to a Facebook Page and an app review for anything beyond your own
 media, which is a lot of setup for little a personal agent can use.

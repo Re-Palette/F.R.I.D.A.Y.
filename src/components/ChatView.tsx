@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { ChatInputLine } from "@/components/ui/ChatInputLine";
 import { Panel } from "@/components/ui/Panel";
 import { cn } from "@/lib/cn";
+import { speak, useSpeakReplies, useSpeechOutputSupported } from "@/lib/speech";
 
 export interface ChatMessage {
   id: string;
@@ -20,6 +21,8 @@ interface ChatViewProps {
 export function ChatView({ conversationId, initialMessages }: ChatViewProps) {
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [pending, setPending] = useState(false);
+  const [speakReplies, setSpeakReplies] = useSpeakReplies();
+  const canSpeak = useSpeechOutputSupported();
   const bottomRef = useRef<HTMLDivElement>(null);
   const sentPendingRef = useRef(false);
 
@@ -53,6 +56,9 @@ export function ChatView({ conversationId, initialMessages }: ChatViewProps) {
           prev.map((m) => (m.id === assistantId ? { ...m, content: acc } : m))
         );
       }
+      // Spoken once the answer is whole: the stream arrives in small chunks
+      // for the typewriter effect, and speaking those would stutter.
+      if (speakReplies) speak(acc);
     } catch (err) {
       console.error("Chat request failed:", err);
       setMessages((prev) =>
@@ -94,7 +100,17 @@ export function ChatView({ conversationId, initialMessages }: ChatViewProps) {
             F.R.I.D.A.Y.
           </span>
         </div>
-        <nav className="flex gap-4 text-[10px] tracking-[var(--tracking-wider)] text-fg-faint">
+        <nav className="flex items-center gap-4 text-[10px] tracking-[var(--tracking-wider)] text-fg-faint">
+          {canSpeak && (
+            <button
+              type="button"
+              onClick={() => setSpeakReplies(!speakReplies)}
+              aria-pressed={speakReplies}
+              className={speakReplies ? "text-accent" : "hover:text-fg-muted"}
+            >
+              読み上げ {speakReplies ? "ON" : "OFF"}
+            </button>
+          )}
           <Link href="/chat" className="hover:text-fg-muted">
             履歴
           </Link>
