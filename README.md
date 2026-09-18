@@ -20,26 +20,53 @@ What exists today:
   tasks/subtasks, events, documents/sources, tool_connections, agent_runs,
   approvals, drafts, activity_logs.
 - Single-user auth (Auth.js v5, Google OAuth, gated by `ALLOWED_EMAIL`).
-- Provider-agnostic LLM layer (`src/lib/llm/`) with a model router that
-  maps task kinds to cost tiers (low/standard/high), currently backed by
-  **OpenAI** (Responses API — see `src/lib/llm/openai.ts`). The abstraction
-  (`LLMProvider`, generic `ContentBlock`s) is what lets the provider be
-  swapped later without touching any Agent code — Claude Code itself is
-  only the dev tool building this app; it is not the app's own LLM Provider.
+- Provider-agnostic LLM layer (`src/lib/llm/`) backed by **Anthropic Claude**
+  (`src/lib/llm/anthropic.ts`). Claude Code is only the dev tool building
+  this app — the deployed app makes its own Anthropic API calls with its
+  own key. The `LLMProvider` abstraction (generic `ContentBlock`s) is what
+  lets the provider be swapped later without touching any Agent code.
+- **Model Router — "Cheap by Default, Powerful When Necessary"**
+  (`src/lib/llm/router.ts`): every task kind maps to a `fast`/`default`/
+  `powerful` tier; `fast`/`default` both default to Haiku (the cheapest
+  current Claude tier), `powerful` to Opus. The Main Loop's own
+  orchestration (deciding *whether* to call a tool) always runs on `fast` —
+  the actual heavy lifting for a task happens inside that tool's own nested
+  call, at a tier chosen by a `complexity`/`importance` argument the
+  orchestrator sets *as part of the tool call it's already making* (see
+  `create-plan.ts`/`create-document.ts`), so tiering costs zero extra LLM
+  calls. `FORCE_MODEL_TIER=fast` forces everything cheap for dev/testing.
 - **Agent Loop** (`src/lib/agents/loop.ts`): the Main Agent's
   Observe→Plan→Act→Evaluate loop, bounded by step/timeout/token/cost
-  guardrails and recorded to `agent_runs`. Delegation to sub-agents happens
-  through tool calls (an orchestrator-worker pattern), not a separate
-  hardcoded router.
+  guardrails. Delegation to sub-agents happens through tool calls (an
+  orchestrator-worker pattern) — a simple question never triggers
+  Planning/Research/Creation; the model only reaches for a tool when the
+  request actually needs one.
   - **Planning Agent** (`create_plan` tool) — decomposes a goal into
     subtasks, including work the user didn't explicitly ask for but that's
-    genuinely needed (derived tasks), and persists them to `tasks`/`subtasks`.
-  - **Research Agent** — uses OpenAI's server-side `web_search` tool (real
-    page fetches, not just search snippets); every URL touched is persisted
-    to `sources`. No extra API key needed beyond `OPENAI_API_KEY`.
-  - **Creation Agent** (`create_document` tool) — drafts a document, runs a
-    self-verification pass (heuristics + an LLM checklist review) before
-    saving, and only persists to `documents` once it passes.
+    genuinely needed (derived tasks), persisted to `tasks`/`subtasks`.
+  - **Research Agent** — uses Anthropic's server-side `web_search`/
+    `web_fetch` tools (real page fetches, not just snippets); every URL
+    touched is persisted to `sources`. No extra API key beyond
+    `ANTHROPIC_API_KEY`. These tools run server-side, so there's no
+    client-side hook to cache/dedupe a query before it's sent — the loop's
+    step/cost guardrails bound the worst case instead (see the note in
+    `research.ts`).
+  - **Creation Agent** (`create_document` tool) — takes a *brief*, not
+    pre-written prose: drafts the content itself (at the tier `importance`
+    calls for), then a self-verification pass (heuristics + an LLM
+    checklist review) before saving; refuses to persist a draft that fails.
+  - **Deterministic intent hook** (`src/lib/agents/intent.ts`) — checked
+    before any LLM call at all, for messages a direct API can answer
+    without a model (e.g. a future "明日の予定ある？" → Google Calendar).
+    No detectors are registered yet since no external services are
+    connected; this is Phase 4's extension point.
+- **Cost monitoring**: every LLM call in a run — the orchestrator's own
+  turns *and* nested calls inside tools — is recorded to a shared
+  `CostTracker` (`src/lib/agents/cost-tracker.ts`) and persisted onto that
+  run's `agent_runs` row (`llm_calls` jsonb with per-call model/tokens/cost,
+  plus `api_call_count`, `tokens_used`, `cost_usd`, `started_at`/`ended_at`)
+  — the data a future "today/this month/per-agent" cost dashboard reads
+  from, without re-deriving anything.
 - The hero screen's input starts a conversation that runs through the Agent
   Loop and persists every turn to Postgres (`src/lib/agents/main-agent.ts`,
   `src/app/api/chat/route.ts`). Tool-using turns can't token-stream (the
@@ -47,9 +74,11 @@ What exists today:
   typewriter effect replays the completed answer in chunks — see the note
   in `route.ts`.
 
-Not yet built: Schedule/Social/Browser agents, tool integrations
-(Notion/Gmail/Calendar/Drive/Instagram/GitHub), the Approval Queue UI
-(all current tools are Level 1/auto, so nothing needs it yet), background
+Not yet built: Schedule/Social/Browser agents, real tool integrations
+(Notion/Gmail/Calendar/Drive/Instagram/GitHub — and the deterministic
+intent detectors that ride on them), the Approval Queue UI (all current
+tools are Level 1/auto, so nothing needs it yet), semantic memory/research
+caching (the Memory tables exist but retrieval isn't wired up), background
 scheduler/worker, and voice — these follow in Phases 4–8.
 
 ## Setup
@@ -57,13 +86,10 @@ scheduler/worker, and voice — these follow in Phases 4–8.
 1. `pnpm install`
 2. Copy `.env.example` to `.env.local` and fill in:
    - `DATABASE_URL` — a Neon Postgres connection string.
-   - `OPENAI_API_KEY`. The model router's default model IDs
-     (`OPENAI_FAST_MODEL`/`OPENAI_CHAT_MODEL`/`OPENAI_REASONING_MODEL`) come
-     from the installed OpenAI SDK's own type definitions, not a live docs
-     check — this dev sandbox's network policy blocks platform.openai.com.
-     Confirm current model IDs/pricing at
-     https://platform.openai.com/docs/models and override via env vars if
-     they've changed.
+   - `ANTHROPIC_API_KEY`. The model router's default model IDs
+     (`ANTHROPIC_FAST_MODEL`/`ANTHROPIC_DEFAULT_MODEL`/`ANTHROPIC_POWERFUL_MODEL`)
+     default to Haiku/Haiku/Opus — override via env vars only if you want a
+     different split, no code change needed either way.
    - `AUTH_SECRET` (`npx auth secret`), `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`
      from a Google OAuth client.
    - `ALLOWED_EMAIL` — the only account permitted to sign in.

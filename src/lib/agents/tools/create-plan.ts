@@ -50,15 +50,29 @@ export const createPlanTool: ToolDefinition = {
     properties: {
       goal: { type: "string", description: "The user's goal, in their own words plus any relevant context." },
       deadline: { type: "string", description: "ISO 8601 date/time if the user gave one, otherwise omit." },
+      complexity: {
+        type: "string",
+        enum: ["simple", "complex"],
+        description:
+          "Your own assessment of this plan's difficulty. 'simple': a handful of clear, well-understood steps. " +
+          "'complex': large-scale decomposition, coordinating several kinds of work, or a decision that's " +
+          "genuinely hard to get right. Defaults to 'simple' — only mark 'complex' when it truly warrants " +
+          "deeper reasoning, since that costs more.",
+      },
     },
     required: ["goal"],
   },
   level: 1,
-  async execute(input) {
+  async execute(input, ctx) {
     const goal = String(input.goal ?? "").trim();
     if (!goal) return { ok: false, content: "goal is required" };
 
-    const { provider, model } = routeModel("planning");
+    // Zero extra LLM calls: the orchestrator (already calling this tool)
+    // judges complexity as a tool argument, so tiering costs nothing beyond
+    // the plan generation itself (Master Brief "Cheap by Default, Powerful
+    // When Necessary").
+    const tier = input.complexity === "complex" ? "powerful" : undefined;
+    const { provider, model } = routeModel("planning", tier);
     let plan: PlanOutput;
     try {
       const result = await provider.complete({
@@ -67,6 +81,7 @@ export const createPlanTool: ToolDefinition = {
         messages: [{ role: "user", content: goal }],
         maxTokens: 2048,
       });
+      ctx.costTracker.record(model, result.usage);
       const text = result.content
         .filter((b) => b.type === "text")
         .map((b) => (b.type === "text" ? b.text : ""))

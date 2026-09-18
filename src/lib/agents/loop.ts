@@ -2,10 +2,10 @@ import { eq } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import { agentRuns, sources } from "@/lib/db/schema";
 import { routeModel } from "@/lib/llm/router";
-import { estimateCostUsd } from "@/lib/llm/pricing";
 import type { ContentBlock, LLMMessage } from "@/lib/llm/types";
 import { getTool, toLLMToolDefs } from "./tools";
 import { extractSourcesFromContent } from "./research";
+import { CostTracker } from "./cost-tracker";
 
 export interface AgentLoopLimits {
   maxSteps: number;
@@ -66,24 +66,39 @@ async function persistDiscoveredSources(content: ContentBlock[]) {
  * the model's own tool-use decision (an orchestrator-worker pattern) —
  * delegation to Planning/Research/Creation happens via the tools it's
  * given, not a separate hardcoded router. Guardrails bound the whole run.
+ *
+ * The orchestrator itself always runs on the "chat" tier (fast/cheap by
+ * default — see Model Router). Tools that need more intelligence for their
+ * *own* internal work (Planning's decomposition, Creation's drafting/
+ * verification) make their own routeModel() calls at a task-appropriate
+ * tier, recorded into the same `costTracker` so agent_runs reflects the
+ * run's true total cost, not just the orchestrator's share of it.
  */
 export async function runAgentLoop(params: AgentLoopParams): Promise<AgentLoopResult> {
   const limits = { ...DEFAULT_LIMITS, ...params.limits };
   const { provider, model } = routeModel("chat");
   const deadline = Date.now() + limits.timeoutMs;
+  const costTracker = new CostTracker();
 
   const [run] = await db.insert(agentRuns).values({ agentRole: "main", status: "running", steps: [] }).returning();
 
   const messages: LLMMessage[] = [...params.messages];
   const steps: RecordedStep[] = [];
-  let tokensUsed = 0;
-  let costUsd = 0;
   let finalText = "";
 
   const finish = async (status: "succeeded" | "failed" | "timed_out") => {
+    const totals = costTracker.totals;
     await db
       .update(agentRuns)
-      .set({ status, steps, tokensUsed, costUsd: costUsd.toFixed(4), endedAt: new Date() })
+      .set({
+        status,
+        steps,
+        llmCalls: costTracker.entries,
+        apiCallCount: totals.callCount,
+        tokensUsed: totals.tokens,
+        costUsd: totals.costUsd.toFixed(4),
+        endedAt: new Date(),
+      })
       .where(eq(agentRuns.id, run.id));
   };
 
@@ -100,9 +115,9 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<AgentLoopRe
         maxTokens: 4096,
       });
 
-      tokensUsed += result.usage.inputTokens + result.usage.outputTokens;
-      costUsd += estimateCostUsd(model, result.usage);
-      if (tokensUsed > limits.maxTokens || costUsd > limits.maxCostUsd) {
+      costTracker.record(model, result.usage);
+      const totals = costTracker.totals;
+      if (totals.tokens > limits.maxTokens || totals.costUsd > limits.maxCostUsd) {
         throw new AgentLoopLimitError("budget_exceeded");
       }
 
@@ -144,7 +159,11 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<AgentLoopRe
           const tool = getTool(call.name);
           const outcome = tool
             ? await tool
-                .execute(call.input, { userId: params.userId, conversationId: params.conversationId })
+                .execute(call.input, {
+                  userId: params.userId,
+                  conversationId: params.conversationId,
+                  costTracker,
+                })
                 .catch((err: Error) => ({ ok: false, content: `Tool error: ${err.message}` }))
             : { ok: false, content: `Unknown tool: ${call.name}` };
 

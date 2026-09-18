@@ -1,5 +1,14 @@
 import { runAgentLoop } from "./loop";
+import { detectDeterministicIntent } from "./intent";
 import type { LLMMessage } from "@/lib/llm/types";
+
+function lastUserText(history: LLMMessage[]): string | null {
+  for (let i = history.length - 1; i >= 0; i--) {
+    const m = history[i];
+    if (m.role === "user" && typeof m.content === "string") return m.content;
+  }
+  return null;
+}
 
 const SYSTEM_PROMPT = `あなたは F.R.I.D.A.Y. — ユーザー専用の自律型パーソナルAIエージェントです。
 一般的なQ&Aチャットボットとしてではなく、ユーザーの目的を理解し、必要な作業を能動的に考える
@@ -26,6 +35,16 @@ export async function runMainAgentTurn(
   conversationId: string,
   history: LLMMessage[]
 ): Promise<string> {
+  // Code-first fast path (Master Brief §3): skip the LLM entirely when the
+  // message matches a deterministic intent we already have a direct API
+  // for. No detectors are registered yet (see agents/intent.ts) — this is
+  // the hook Phase 4's Calendar/Gmail/Notion integrations plug into.
+  const message = lastUserText(history);
+  const deterministic = message ? detectDeterministicIntent(message) : null;
+  if (deterministic) {
+    return deterministic.handle({ userId, conversationId });
+  }
+
   const { finalText } = await runAgentLoop({
     userId,
     conversationId,

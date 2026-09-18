@@ -23,6 +23,12 @@ export const agentRuns = pgTable("agent_runs", {
     .notNull()
     .default("running"),
   steps: jsonb("steps").notNull().default([]),
+  // Every LLM call this run made — orchestrator turns *and* nested calls
+  // inside tools (Planning/Creation) — as {model, inputTokens, outputTokens,
+  // costUsd}[]. Backs the cost-monitoring UI (Master Brief §8): today's/this
+  // month's usage, and which agent/model spent the most.
+  llmCalls: jsonb("llm_calls").notNull().default([]),
+  apiCallCount: integer("api_call_count").notNull().default(0),
   tokensUsed: integer("tokens_used").notNull().default(0),
   costUsd: numeric("cost_usd", { precision: 10, scale: 4 }).notNull().default("0"),
   startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),

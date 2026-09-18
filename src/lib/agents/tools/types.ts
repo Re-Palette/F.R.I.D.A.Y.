@@ -1,6 +1,10 @@
+import type { CostTracker } from "../cost-tracker";
+
 export interface ToolExecutionContext {
   userId: string;
   conversationId: string;
+  /** Shared across the whole Agent Run so nested LLM calls count toward its total cost. */
+  costTracker: CostTracker;
 }
 
 export interface ToolResult {

@@ -40,7 +40,7 @@ export interface CompleteParams {
   /**
    * Capability flag, not a provider-specific tool type: "give this call the
    * ability to search and read the live web." Each provider maps it to
-   * whatever mechanism it has (OpenAI: the server-side web_search tool).
+   * whatever mechanism it has (Anthropic: server-side web_search/web_fetch).
    */
   enableWebSearch?: boolean;
   maxTokens?: number;
