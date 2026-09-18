@@ -7,12 +7,11 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "db:enable-extensions": "tsx scripts/enable-extensions.ts",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
+    "db:migrate": "tsx scripts/migrate.ts",
     "db:studio": "drizzle-kit studio",
     "calendar:get-token": "tsx scripts/get-google-refresh-token.ts",
-    "vercel-build": "tsx scripts/enable-extensions.ts && drizzle-kit migrate && next build"
+    "vercel-build": "tsx scripts/migrate.ts && next build"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.126.0",

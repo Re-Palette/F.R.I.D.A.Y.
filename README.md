@@ -113,10 +113,10 @@ up), background scheduler/worker, and voice — these follow in Phases 4–8.
      `GOOGLE_CALENDAR_REFRESH_TOKEN` — optional; see `.env.example` for the
      one-time setup (`pnpm calendar:get-token`). Without these, calendar
      questions just get told it's not connected.
-3. Enable pgvector and create the tables (only needed for local dev against
-   a real DB — Vercel does this automatically on deploy, see below):
+3. Create the tables (only needed for local dev against a real DB — Vercel
+   does this automatically on deploy, see below). `db:migrate` enables
+   pgvector and applies the migrations in one step:
    ```bash
-   pnpm db:enable-extensions
    pnpm db:generate
    pnpm db:migrate
    ```
@@ -126,14 +126,22 @@ up), background scheduler/worker, and voice — these follow in Phases 4–8.
 
 **Migrations run automatically on every Vercel deploy.** `package.json`
 defines a `vercel-build` script (Vercel uses it in place of `build`
-automatically, no dashboard config needed) that enables pgvector and runs
-`drizzle-kit migrate` — using Vercel's own network, which can reach
-Neon — before `next build`. Generated SQL under `drizzle/` is committed to
-the repo; only `pnpm db:generate` needs to run locally (schema-only, no DB
-connection) whenever `src/lib/db/schema/` changes, then commit the result.
-Local `pnpm dev`/`pnpm build` are unaffected — they still don't touch the
-database, on the same lazy-init/build-doesn't-need-secrets basis as
-before.
+automatically, no dashboard config needed) that runs `scripts/migrate.ts`
+— enabling pgvector and applying migrations over Neon's HTTP driver, the
+same transport the app itself uses — before `next build`. Generated SQL
+under `drizzle/` is committed to the repo; only `pnpm db:generate` needs to
+run locally (schema-only, no DB connection) whenever `src/lib/db/schema/`
+changes, then commit the result. Local `pnpm dev`/`pnpm build` are
+unaffected — they still don't touch the database, on the same
+lazy-init/build-doesn't-need-secrets basis as before.
+
+If `DATABASE_URL` isn't set, the migration step logs a warning and the
+build continues: a build with no database configured has nothing to
+migrate, and a missing env var must not take down compilation (Preview
+deployments in particular often have a narrower variable list than
+Production — see below). A `DATABASE_URL` that *is* set but unreachable,
+or a migration that fails to apply, still fails the build, so code never
+ships against a schema that didn't get updated.
 
 **This deployment has no login.** Anyone with the URL can read every
 conversation/document and can spend your `ANTHROPIC_API_KEY` quota by
@@ -158,7 +166,8 @@ useful without `DATABASE_URL`/`ANTHROPIC_API_KEY` set.
 - `pnpm dev` / `pnpm build` / `pnpm start`
 - `pnpm lint`
 - `pnpm db:generate` — generate SQL migrations from the Drizzle schema
-- `pnpm db:migrate` — apply migrations to `DATABASE_URL`
+  (offline; needs no database connection)
+- `pnpm db:migrate` — enable pgvector and apply migrations to `DATABASE_URL`
 - `pnpm db:studio` — browse the database
 - `pnpm calendar:get-token` — one-time local OAuth flow to print a Google
   Calendar refresh token (see `.env.example`)
