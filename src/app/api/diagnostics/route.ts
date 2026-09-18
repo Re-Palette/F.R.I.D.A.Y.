@@ -20,9 +20,20 @@ const CHECKED = [
 
 export const dynamic = "force-dynamic";
 
+// A variable that exists but holds an empty string looks identical to a
+// missing one from the app's side, while still showing as a row in the
+// Vercel dashboard — worth telling apart. The length catches a truncated
+// paste; the value itself is never reported.
+function describe(name: string) {
+  const value = process.env[name];
+  if (value === undefined) return "missing";
+  if (value.trim() === "") return "empty";
+  return `set (${value.length} chars)`;
+}
+
 export async function GET() {
-  const present: Record<string, boolean> = {};
-  for (const name of CHECKED) present[name] = Boolean(process.env[name]);
+  const present: Record<string, string> = {};
+  for (const name of CHECKED) present[name] = describe(name);
 
   let database: string;
   try {
