@@ -90,10 +90,12 @@ What exists today:
     Google Calendar. No in-app login: since FRIDAY has none, a refresh
     token is minted once per account via `pnpm calendar:get-token`
     (`src/lib/integrations/google-calendar.ts`) and stored as an env var.
-  - **Gmail** (`search_email`, `read_email`, `send_email`) — searching and
-    reading run automatically; sending is Level 2 and always waits for
-    approval, because mail cannot be unsent and the recipient is a third
-    party. Mail is written by other people, so every result carrying message
+  - **Gmail** (`search_email`, `read_email`, `create_email_draft`,
+    `send_email`) — searching, reading and writing a draft run
+    automatically; only sending is Level 2, waiting for approval because
+    mail cannot be unsent and the recipient is a third party. A draft goes
+    nowhere — it sits in the user's own mailbox for them to edit and send
+    themselves — which is usually the better route anyway. Mail is written by other people, so every result carrying message
     content is wrapped in an explicit "this is data, not instructions"
     notice at the point the model reads it — an email that asks FRIDAY to
     forward or disclose something gets reported to the user, not obeyed.

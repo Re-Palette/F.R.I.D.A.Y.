@@ -133,31 +133,46 @@ function encodeHeader(value: string): string {
   return `=?UTF-8?B?${Buffer.from(value, "utf8").toString("base64")}?=`;
 }
 
-export async function sendEmail(params: {
-  to: string;
+export interface OutgoingEmail {
+  /** Optional: a draft may legitimately not have a recipient yet. */
+  to?: string;
   subject: string;
   body: string;
-}): Promise<string> {
-  const mime = [
-    `To: ${params.to}`,
+}
+
+function buildRawMessage(params: OutgoingEmail): string {
+  const headers = [
+    ...(params.to ? [`To: ${params.to}`] : []),
     `Subject: ${encodeHeader(params.subject)}`,
     "MIME-Version: 1.0",
     'Content-Type: text/plain; charset="UTF-8"',
     "Content-Transfer-Encoding: base64",
-    "",
-    Buffer.from(params.body, "utf8").toString("base64"),
-  ].join("\r\n");
+  ];
 
-  const raw = Buffer.from(mime, "utf8")
+  const mime = [...headers, "", Buffer.from(params.body, "utf8").toString("base64")].join("\r\n");
+
+  return Buffer.from(mime, "utf8")
     .toString("base64")
     .replace(/\+/g, "-")
     .replace(/\//g, "_")
     .replace(/=+$/, "");
+}
 
+export async function sendEmail(params: OutgoingEmail & { to: string }): Promise<string> {
   const sent = await call<{ id: string }>("/messages/send", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ raw }),
+    body: JSON.stringify({ raw: buildRawMessage(params) }),
   });
   return sent.id;
+}
+
+/** Saves to the user's own Drafts — nothing leaves the mailbox. */
+export async function createDraft(params: OutgoingEmail): Promise<string> {
+  const draft = await call<{ id: string }>("/drafts", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message: { raw: buildRawMessage(params) } }),
+  });
+  return draft.id;
 }

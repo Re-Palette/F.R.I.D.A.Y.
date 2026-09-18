@@ -1,4 +1,4 @@
-import { isGmailConfigured, readEmail, searchEmails, sendEmail } from "@/lib/integrations/gmail";
+import { createDraft, isGmailConfigured, readEmail, searchEmails, sendEmail } from "@/lib/integrations/gmail";
 import type { ToolDefinition } from "./types";
 
 const NOT_CONNECTED = "Gmail is not connected yet. Tell the user this isn't set up.";
@@ -79,6 +79,44 @@ export const readEmailTool: ToolDefinition = {
       };
     } catch (err) {
       return { ok: false, content: `Reading the message failed: ${(err as Error).message}` };
+    }
+  },
+};
+
+export const createEmailDraftTool: ToolDefinition = {
+  name: "create_email_draft",
+  description:
+    "Write an email into the user's Gmail drafts, where they can review, edit and send it themselves. " +
+    "Nothing is sent. Prefer this over send_email whenever the user wants to check the wording first, or " +
+    "says to draft/prepare rather than send. Write the full body — not an outline.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      to: { type: "string", description: "Recipient address. Omit if the user hasn't decided yet." },
+      subject: { type: "string", description: "Subject line." },
+      body: { type: "string", description: "Plain-text body, complete and ready to review." },
+    },
+    required: ["subject", "body"],
+  },
+  // A draft goes nowhere: it sits in the user's own mailbox, visible only to
+  // them, and deleting it costs one click. Nothing here needs a gate.
+  level: 1,
+  async execute(input) {
+    if (!isGmailConfigured()) return { ok: false, content: NOT_CONNECTED };
+
+    const subject = String(input.subject ?? "").trim();
+    const body = String(input.body ?? "").trim();
+    const to = String(input.to ?? "").trim() || undefined;
+    if (!body) return { ok: false, content: "body is required" };
+
+    try {
+      const id = await createDraft({ to, subject, body });
+      return {
+        ok: true,
+        content: `Gmail の下書きに保存しました（draft id ${id}）。${to ? `宛先: ${to}。` : "宛先は未設定です。"}Gmail の「下書き」から確認・編集・送信できます。`,
+      };
+    } catch (err) {
+      return { ok: false, content: `Saving the draft failed: ${(err as Error).message}` };
     }
   },
 };
