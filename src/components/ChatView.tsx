@@ -35,6 +35,10 @@ export function ChatView({ conversationId, initialMessages }: ChatViewProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ conversationId, content }),
       });
+      // Without this, an error response (whose body Next leaves empty) was
+      // read as a perfectly normal stream that happened to contain nothing,
+      // and the assistant bubble just stayed blank.
+      if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`);
       if (!res.body) throw new Error("no stream");
 
       const reader = res.body.getReader();
@@ -48,11 +52,10 @@ export function ChatView({ conversationId, initialMessages }: ChatViewProps) {
           prev.map((m) => (m.id === assistantId ? { ...m, content: acc } : m))
         );
       }
-    } catch {
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
       setMessages((prev) =>
-        prev.map((m) =>
-          m.id === assistantId ? { ...m, content: "（エラーが発生しました。もう一度お試しください）" } : m
-        )
+        prev.map((m) => (m.id === assistantId ? { ...m, content: `（エラー: ${detail}）` } : m))
       );
     } finally {
       setPending(false);

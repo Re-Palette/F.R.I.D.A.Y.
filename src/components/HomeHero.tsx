@@ -22,16 +22,24 @@ const RIGHT_CAPABILITIES = [
 export function HomeHero() {
   const router = useRouter();
   const [starting, setStarting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(value: string) {
     setStarting(true);
+    setError(null);
     try {
       const res = await fetch("/api/conversations", { method: "POST" });
-      if (!res.ok) throw new Error("failed to create conversation");
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(body?.error || `HTTP ${res.status}`);
+      }
       const { id } = (await res.json()) as { id: string };
       sessionStorage.setItem(`friday:pending:${id}`, value);
       router.push(`/chat/${id}`);
-    } catch {
+    } catch (err) {
+      // Silently resetting here meant a failed start looked identical to
+      // nothing happening: the input just became editable again.
+      setError(err instanceof Error ? err.message : String(err));
       setStarting(false);
     }
   }
@@ -82,6 +90,11 @@ export function HomeHero() {
           disabled={starting}
           placeholder={starting ? "起動中…" : "何を手伝いましょうか？"}
         />
+        {error && (
+          <p className="mt-3 text-center text-[11px] text-fg-muted">
+            起動に失敗しました: {error}
+          </p>
+        )}
       </div>
 
       <footer className="flex items-center justify-between pt-4 text-[10px] text-fg-faint">
