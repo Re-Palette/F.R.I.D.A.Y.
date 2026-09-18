@@ -70,3 +70,55 @@ body {
   background: var(--color-accent-dim);
   color: var(--color-fg);
 }
+
+/*
+ * Instrument motion.
+ *
+ * Declared here rather than reached for through Tailwind's animate-* utilities
+ * because these are driven from inline style (each arc gets its own duration),
+ * and Tailwind v4 only emits a keyframe when one of its utilities references
+ * it — an inline `animation: spin ...` resolved to nothing at all, which is
+ * why the rings were static.
+ *
+ * transform-box is set explicitly so "center" means the centre of the SVG
+ * viewBox rather than each element's own bounding box.
+ */
+@keyframes friday-rotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes friday-blink {
+  0%,
+  100% {
+    opacity: 0.15;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.ring-rotate {
+  transform-box: view-box;
+  transform-origin: center;
+  animation: friday-rotate var(--ring-duration, 60s) linear infinite;
+  animation-direction: var(--ring-direction, normal);
+  /* steps() makes an arc index round in discrete clicks instead of gliding,
+     which is most of what reads as mechanical rather than decorative. */
+  animation-timing-function: var(--ring-easing, linear);
+}
+
+.ring-blink {
+  animation: friday-blink var(--ring-duration, 4s) steps(1, end) infinite;
+  animation-delay: var(--ring-delay, 0s);
+}
+
+/* Continuous rotation is exactly the kind of motion that causes trouble for
+   people who ask the platform to reduce it. */
+@media (prefers-reduced-motion: reduce) {
+  .ring-rotate,
+  .ring-blink {
+    animation: none;
+  }
+}
