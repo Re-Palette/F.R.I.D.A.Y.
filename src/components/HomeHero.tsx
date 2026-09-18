@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { StatusRing } from "@/components/ui/StatusRing";
+import { HeroBackdrop } from "@/components/ui/HeroBackdrop";
 import { LabelList } from "@/components/ui/LabelList";
 import { ChatInputLine } from "@/components/ui/ChatInputLine";
 
@@ -65,23 +66,31 @@ export function HomeHero() {
       </header>
 
       <div className="relative flex flex-1 items-center justify-center">
-        <div className="hidden absolute left-0 top-1/2 -translate-y-1/2 sm:block">
+        <HeroBackdrop />
+
+        <div className="hidden absolute left-0 top-1/2 z-10 -translate-y-1/2 sm:block">
           <LabelList items={LEFT_STATUS} />
         </div>
 
-        <div className="flex flex-col items-center gap-6 text-center">
-          <StatusRing size={220} active />
-          <div className="flex flex-col items-center gap-3">
-            <h1 className="text-3xl font-light tracking-[var(--tracking-wider)] sm:text-4xl">
-              F.R.I.D.A.Y.
-            </h1>
-            <p className="text-[11px] tracking-[var(--tracking-wide)] text-fg-muted">
-              PERSONAL INTELLIGENCE OPERATING SYSTEM
-            </p>
-          </div>
+        {/* Width is set here, not inherited: as a flex child sized by its
+            content the ring collapsed to the width of the line beneath it. */}
+        <div className="relative flex w-[min(72vw,34rem)] items-center justify-center">
+          <StatusRing size={544} active />
+
+          {/* Only the mark goes inside, sized so it spans the inner face the
+              way the reference does rather than spilling over the band. */}
+          <h1 className="absolute text-sm font-light tracking-[0.25em] [text-shadow:0_0_20px_rgba(255,122,26,0.45)] sm:text-2xl sm:tracking-[0.4em]">
+            F.R.I.D.A.Y.
+          </h1>
+
+          {/* Absolute so the ring stays centred on the frame's crosshair
+              instead of being pushed up by this line. */}
+          <p className="absolute top-full mt-4 w-max text-center text-[9px] tracking-[var(--tracking-wide)] text-fg-muted sm:text-[11px]">
+            PERSONAL INTELLIGENCE OPERATING SYSTEM
+          </p>
         </div>
 
-        <div className="hidden absolute right-0 top-1/2 -translate-y-1/2 sm:block">
+        <div className="hidden absolute right-0 top-1/2 z-10 -translate-y-1/2 sm:block">
           <LabelList items={RIGHT_CAPABILITIES} align="right" />
         </div>
       </div>
@@ -97,9 +106,11 @@ export function HomeHero() {
         )}
       </div>
 
-      <footer className="flex items-center justify-between pt-4 text-[10px] text-fg-faint">
+      {/* Five links plus the version will not sit on one line on a phone;
+          stacking beats the columns of single characters that resulted. */}
+      <footer className="flex flex-col items-center gap-2 pt-4 text-[10px] text-fg-faint sm:flex-row sm:items-center sm:justify-between">
         <span>F.R.I.D.A.Y. / v1.0.0</span>
-        <nav className="flex gap-4 tracking-[var(--tracking-wider)]">
+        <nav className="flex flex-wrap justify-center gap-x-4 gap-y-1 tracking-[var(--tracking-wider)]">
           <Link href="/chat" className="hover:text-fg-muted">
             会話履歴
           </Link>
