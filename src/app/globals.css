@@ -1,0 +1,72 @@
+@import "tailwindcss";
+
+/*
+ * F.R.I.D.A.Y. Design System — tokens
+ * Derived from the reference hero image: near-black void, single amber accent,
+ * hairline borders, wide-tracked uppercase type. Dark-only; no light theme.
+ */
+:root {
+  --color-void: #050505;
+  --color-panel: #0b0b0d;
+  --color-panel-raised: #101013;
+
+  --color-fg: #f5f5f0;
+  --color-fg-muted: #8a8a90;
+  --color-fg-faint: #4d4d52;
+
+  --color-accent: #ff7a1a;
+  --color-accent-soft: #ffb066;
+  --color-accent-dim: #7a3d14;
+
+  --color-ring-metal: #3a3d45;
+  --color-border: rgba(255, 255, 255, 0.08);
+  --color-border-strong: rgba(255, 255, 255, 0.16);
+
+  --font-display: var(--font-space-grotesk);
+  --font-mono: var(--font-jetbrains-mono);
+
+  --tracking-wide: 0.15em;
+  --tracking-wider: 0.3em;
+
+  --radius-sm: 3px;
+  --radius-md: 6px;
+
+  --glow-accent: 0 0 24px 0 rgba(255, 122, 26, 0.35);
+  --glow-accent-soft: 0 0 12px 0 rgba(255, 122, 26, 0.2);
+}
+
+@theme inline {
+  --color-void: var(--color-void);
+  --color-panel: var(--color-panel);
+  --color-panel-raised: var(--color-panel-raised);
+  --color-fg: var(--color-fg);
+  --color-fg-muted: var(--color-fg-muted);
+  --color-fg-faint: var(--color-fg-faint);
+  --color-accent: var(--color-accent);
+  --color-accent-soft: var(--color-accent-soft);
+  --color-accent-dim: var(--color-accent-dim);
+  --color-ring-metal: var(--color-ring-metal);
+  --color-border: var(--color-border);
+  --color-border-strong: var(--color-border-strong);
+  --font-display: var(--font-display);
+  --font-mono: var(--font-mono);
+}
+
+* {
+  border-color: var(--color-border);
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background: var(--color-void);
+  color: var(--color-fg);
+  font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+}
+
+::selection {
+  background: var(--color-accent-dim);
+  color: var(--color-fg);
+}
