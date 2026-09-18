@@ -77,7 +77,22 @@ export function useSpeechOutputSupported(): boolean {
   return useSyncExternalStore(NEVER_CHANGES, speechOutputSupported, () => false);
 }
 
-export function useSpeechInput(onFinal: (text: string) => void, lang = "ja-JP"): SpeechInput {
+export interface SpeechInputOptions {
+  lang?: string;
+  /**
+   * Called when a listen ends having heard nothing — the caller can tell
+   * "they stopped talking" apart from "they never started", which a
+   * continuous conversation needs in order to stop rather than sit with the
+   * microphone open.
+   */
+  onSilence?: () => void;
+}
+
+export function useSpeechInput(
+  onFinal: (text: string) => void,
+  options: SpeechInputOptions = {}
+): SpeechInput {
+  const { lang = "ja-JP", onSilence } = options;
   const supported = useSpeechInputSupported();
   const [listening, setListening] = useState(false);
   const [transcript, setTranscript] = useState("");
@@ -89,9 +104,11 @@ export function useSpeechInput(onFinal: (text: string) => void, lang = "ja-JP"):
   // Written from an effect rather than during render, which would be a
   // side effect in a place React makes no promises about.
   const finalHandler = useRef(onFinal);
+  const silenceHandler = useRef(onSilence);
   useEffect(() => {
     finalHandler.current = onFinal;
-  }, [onFinal]);
+    silenceHandler.current = onSilence;
+  }, [onFinal, onSilence]);
 
   const start = useCallback(() => {
     const Ctor = recognitionCtor();
@@ -136,6 +153,7 @@ export function useSpeechInput(onFinal: (text: string) => void, lang = "ja-JP"):
       setListening(false);
       const text = finalText.trim();
       if (text) finalHandler.current(text);
+      else silenceHandler.current?.();
       setTranscript("");
     };
 
@@ -161,15 +179,28 @@ export function speechOutputSupported(): boolean {
   return typeof window !== "undefined" && "speechSynthesis" in window;
 }
 
-/** Reads `text` aloud, replacing anything already being spoken. */
-export function speak(text: string, lang = "ja-JP") {
-  if (!speechOutputSupported()) return;
+/**
+ * Reads `text` aloud, replacing anything already being spoken.
+ *
+ * `onEnd` is what makes a back-and-forth possible: it fires when the reply
+ * has finished being spoken, which is the moment to listen again. It also
+ * fires when speech is unavailable or the text is empty, so a caller waiting
+ * on it is never left waiting forever.
+ */
+export function speak(text: string, options: { lang?: string; onEnd?: () => void } = {}) {
+  const { lang = "ja-JP", onEnd } = options;
   const trimmed = text.trim();
-  if (!trimmed) return;
+  if (!speechOutputSupported() || !trimmed) {
+    onEnd?.();
+    return;
+  }
 
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(trimmed);
   utterance.lang = lang;
+  utterance.onend = () => onEnd?.();
+  // A failed utterance must still release whoever is waiting on it.
+  utterance.onerror = () => onEnd?.();
 
   // Voices load asynchronously on some platforms, so an empty list here
   // means "not ready yet" rather than "none available" — the default voice
