@@ -134,7 +134,11 @@ export function localDateString(offsetDays = 0): string {
 
 export function formatEventLine(e: CalendarEvent): string {
   if (e.allDay) return `- ${e.title}（終日）${e.location ? ` @ ${e.location}` : ""}`;
-  const start = new Date(e.start);
-  const time = `${String(start.getUTCHours()).padStart(2, "0")}:${String(start.getUTCMinutes()).padStart(2, "0")}`;
+  // Shift the instant by the configured offset so the UTC getters read local
+  // wall-clock time, as localDateString does. Reading them off the raw
+  // instant printed every event in UTC — a 14:00 meeting in Tokyo showed as
+  // 05:00.
+  const local = new Date(new Date(e.start).getTime() + offsetMinutes() * 60_000);
+  const time = `${String(local.getUTCHours()).padStart(2, "0")}:${String(local.getUTCMinutes()).padStart(2, "0")}`;
   return `- ${time} ${e.title}${e.location ? ` @ ${e.location}` : ""}`;
 }
