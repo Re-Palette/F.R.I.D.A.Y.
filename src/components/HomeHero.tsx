@@ -29,8 +29,10 @@ const PHASE_LINE: Record<VoicePhase, string> = {
   idle: "リングに触れて話しかける",
   listening: "聞いています",
   thinking: "考えています",
-  speaking: "応答中",
+  speaking: "応答中（話しかければ中断します）",
 };
+
+const WAITING_LINE = "「フライデー」と呼んでください";
 
 export function HomeHero() {
   const router = useRouter();
@@ -76,13 +78,34 @@ export function HomeHero() {
           </span>
           <span className="text-xs tracking-[var(--tracking-wider)]">F.R.I.D.A.Y.</span>
         </div>
-        <nav className="hidden gap-3 text-[10px] tracking-[var(--tracking-wider)] text-fg-muted sm:flex">
-          <span>THINK</span>
-          <span className="text-fg-faint">/</span>
-          <span>CONNECT</span>
-          <span className="text-fg-faint">/</span>
-          <span>EXECUTE</span>
-        </nav>
+        <div className="flex items-center gap-4">
+          <nav className="hidden gap-3 text-[10px] tracking-[var(--tracking-wider)] text-fg-muted sm:flex">
+            <span>THINK</span>
+            <span className="text-fg-faint">/</span>
+            <span>CONNECT</span>
+            <span className="text-fg-faint">/</span>
+            <span>EXECUTE</span>
+          </nav>
+
+          {/* An always-open microphone is a choice, not a default — see
+              wake-word.ts. The switch is here rather than buried so that
+              whether it is listening is never a question. */}
+          {voice.supported && (
+            <button
+              type="button"
+              onClick={() => voice.setWakeEnabled(!voice.wakeEnabled)}
+              aria-pressed={voice.wakeEnabled}
+              className={cn(
+                "text-[10px] tracking-[var(--tracking-wider)] transition-colors",
+                voice.wakeEnabled
+                  ? "text-accent [text-shadow:0_0_10px_rgba(255,122,26,0.5)]"
+                  : "text-fg-faint hover:text-fg-muted"
+              )}
+            >
+              WAKE {voice.wakeEnabled ? "ON" : "OFF"}
+            </button>
+          )}
+        </div>
       </header>
 
       <div className="relative flex flex-1 items-center justify-center">
@@ -107,6 +130,7 @@ export function HomeHero() {
               type="button"
               onClick={voice.toggle}
               aria-label={talking ? "会話を終える" : "話しかける"}
+              title={voice.waiting ? WAITING_LINE : undefined}
               aria-pressed={talking}
               className="absolute inset-0 z-10 rounded-full outline-none focus-visible:ring-1 focus-visible:ring-accent-dim"
             />
@@ -135,7 +159,7 @@ export function HomeHero() {
               talking ? "text-accent-soft" : "text-fg-muted"
             )}
           >
-            {voice.supported ? PHASE_LINE[voice.phase] : TAGLINE}
+            {!voice.supported ? TAGLINE : voice.waiting ? WAITING_LINE : PHASE_LINE[voice.phase]}
           </p>
         </div>
 

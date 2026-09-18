@@ -40,7 +40,10 @@ interface SpeechRecognitionEventLike {
 
 type RecognitionCtor = new () => SpeechRecognitionLike;
 
-function recognitionCtor(): RecognitionCtor | null {
+/** Shared with wake-word.ts, which runs a recognition of its own. */
+export type { SpeechRecognitionLike, SpeechRecognitionEventLike };
+
+export function recognitionCtor(): RecognitionCtor | null {
   if (typeof window === "undefined") return null;
   const w = window as unknown as {
     SpeechRecognition?: RecognitionCtor;
@@ -162,7 +165,23 @@ export function useSpeechInput(
     setError(null);
     setTranscript("");
     setListening(true);
-    r.start();
+
+    // Chrome refuses a start while another recognition is still releasing the
+    // microphone, which is exactly what a handover from the wake listener
+    // looks like. One retry covers it; the alternative is a dropped turn.
+    try {
+      r.start();
+    } catch {
+      setTimeout(() => {
+        if (recognition.current !== r) return;
+        try {
+          r.start();
+        } catch {
+          recognition.current = null;
+          setListening(false);
+        }
+      }, 250);
+    }
   }, [lang]);
 
   const stop = useCallback(() => {
@@ -216,7 +235,13 @@ function releaseAudio() {
  * the utterance was superseded while the audio was being fetched: in that
  * case nothing should be spoken and nothing should fall back.
  */
-async function speakWithVoice(text: string, mine: number, onEnd?: () => void): Promise<boolean> {
+interface SpeakCallbacks {
+  /** Fires when sound actually starts coming out, not when it was asked for. */
+  onStart?: () => void;
+  onEnd?: () => void;
+}
+
+async function speakWithVoice(text: string, mine: number, { onStart, onEnd }: SpeakCallbacks): Promise<boolean> {
   if (!voiceConfigured) return false;
 
   const res = await fetch("/api/speech", {
@@ -248,6 +273,9 @@ async function speakWithVoice(text: string, mine: number, onEnd?: () => void): P
   };
   audio.onended = done;
   audio.onerror = done;
+  audio.onplaying = () => {
+    if (mine === generation) onStart?.();
+  };
 
   try {
     await audio.play();
@@ -262,7 +290,7 @@ async function speakWithVoice(text: string, mine: number, onEnd?: () => void): P
   return true;
 }
 
-function speakWithBrowser(text: string, mine: number, lang: string, onEnd?: () => void) {
+function speakWithBrowser(text: string, mine: number, lang: string, { onStart, onEnd }: SpeakCallbacks) {
   if (!speechOutputSupported()) {
     onEnd?.();
     return;
@@ -285,6 +313,9 @@ function speakWithBrowser(text: string, mine: number, lang: string, onEnd?: () =
   };
   const watchdog = setTimeout(finish, 5000 + text.length * 90);
 
+  utterance.onstart = () => {
+    if (mine === generation) onStart?.();
+  };
   utterance.onend = finish;
   // A failed utterance must still release whoever is waiting on it.
   utterance.onerror = finish;
@@ -307,13 +338,20 @@ function speakWithBrowser(text: string, mine: number, lang: string, onEnd?: () =
  * the request fails. Nothing here knows which it will be — that is settled by
  * /api/speech, where the key lives.
  *
+ * `onStart` fires when sound actually begins — which is later than this call
+ * by however long the voice took to arrive, and is the moment from which
+ * listening for an interruption makes any sense.
+ *
  * `onEnd` is what makes a back-and-forth possible: it fires when the reply
  * has finished being spoken, which is the moment to listen again. It fires
  * whichever path spoke, and also when speech is unavailable altogether or the
  * text is empty, so a caller waiting on it is never left waiting forever.
  */
-export function speak(text: string, options: { lang?: string; onEnd?: () => void } = {}) {
-  const { lang = "ja-JP", onEnd } = options;
+export function speak(
+  text: string,
+  options: { lang?: string; onStart?: () => void; onEnd?: () => void } = {}
+) {
+  const { lang = "ja-JP", onStart, onEnd } = options;
   // What is spoken is not what is shown: a reply written for the eye reads
   // terribly out loud. See speech-text.ts — the subtitle keeps the original.
   const trimmed = toSpeakable(text, configuredReadings());
@@ -328,11 +366,11 @@ export function speak(text: string, options: { lang?: string; onEnd?: () => void
 
   void (async () => {
     try {
-      if (await speakWithVoice(trimmed, mine, onEnd)) return;
+      if (await speakWithVoice(trimmed, mine, { onStart, onEnd })) return;
     } catch (err) {
       console.error("Voice request failed:", err);
     }
-    if (mine === generation) speakWithBrowser(trimmed, mine, lang, onEnd);
+    if (mine === generation) speakWithBrowser(trimmed, mine, lang, { onStart, onEnd });
   })();
 }
 

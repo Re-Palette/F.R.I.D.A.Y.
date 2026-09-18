@@ -220,6 +220,13 @@ media, which is a lot of setup for little a personal agent can use.
      and markup are already rewritten for the ear before anything is spoken
      — see `src/lib/speech-text.ts`, checked by `pnpm test:speech` — so this
      is only for proper nouns.
+
+   The home screen is voice-only. Touch the ring to talk, or switch WAKE on
+   and call it by name — "フライデー" — and it starts listening on its own.
+   Speaking over a reply cuts it short and hands the turn back, so you never
+   have to wait for it to finish a sentence. WAKE keeps the microphone open
+   for as long as it is on, and Chrome streams what it hears to Google's
+   speech service while it is, which is why it is off until switched on.
 3. Create the tables (only needed for local dev against a real DB — Vercel
    does this automatically on deploy, see below). `db:migrate` enables
    pgvector and applies the migrations in one step:
