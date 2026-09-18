@@ -145,8 +145,19 @@ What exists today:
   `memories.embedding` column and its HNSW index stay unused until it
   doesn't — only `recallMemories()` would change.
 
-Not yet built: Schedule/Social/Browser agents, research caching, background
-scheduler/worker, and voice — these follow in Phases 5–8. Instagram is
+- **Daily briefing** (`src/lib/agents/briefing.ts`, `/api/cron/briefing`):
+  the first thing FRIDAY does unasked. A Vercel cron fires at 07:00 JST,
+  gathers the day's calendar and unread mail *in code* — what belongs in a
+  morning brief is known in advance, so having an agent loop rediscover it
+  daily would be pure cost — and spends one cheap call turning that into
+  something readable, falling back to the raw list if the call fails. It
+  arrives as a new conversation, waiting when you open the app, and a
+  second run the same day is skipped rather than duplicated. Authenticated
+  by `CRON_SECRET`, not the passcode: a scheduled request carries no
+  cookie, so `/api/cron` is excluded from the gate in `src/proxy.ts`.
+
+Not yet built: Schedule/Social/Browser agents, research caching, and voice
+— these follow in Phases 5–8. Instagram is
 deliberately not on that list: its API needs a Business/Creator account
 linked to a Facebook Page and an app review for anything beyond your own
 media, which is a lot of setup for little a personal agent can use.

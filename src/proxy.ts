@@ -29,8 +29,10 @@ export function proxy(request: NextRequest) {
 export const config = {
   // Static assets are excluded so a locked app still renders its own unlock
   // screen, and the manifest stays readable so Chrome can still offer to
-  // install it.
+  // install it. api/cron is excluded because a scheduled invocation carries
+  // no cookie and would otherwise be redirected to the unlock screen every
+  // night; it authenticates with CRON_SECRET instead.
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|icon-192.png|icon-512.png|manifest.webmanifest|unlock|api/unlock).*)",
+    "/((?!_next/static|_next/image|favicon.ico|icon-192.png|icon-512.png|manifest.webmanifest|unlock|api/unlock|api/cron).*)",
   ],
 };
