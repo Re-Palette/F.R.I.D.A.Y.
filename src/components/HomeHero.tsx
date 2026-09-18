@@ -103,6 +103,9 @@ export function HomeHero() {
           <Link href="/chat" className="hover:text-fg-muted">
             会話履歴
           </Link>
+          <Link href="/tasks" className="hover:text-fg-muted">
+            予定タスク
+          </Link>
           <Link href="/approvals" className="hover:text-fg-muted">
             承認待ち
           </Link>

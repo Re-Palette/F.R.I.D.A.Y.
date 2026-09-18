@@ -155,9 +155,23 @@ What exists today:
   second run the same day is skipped rather than duplicated. Authenticated
   by `CRON_SECRET`, not the passcode: a scheduled request carries no
   cookie, so `/api/cron` is excluded from the gate in `src/proxy.ts`.
+- **Scheduled and deferred work** (`src/lib/agents/schedule.ts`,
+  `scheduled-runner.ts`, the `scheduled_tasks` tool, `/tasks`): a repeating
+  task ("毎週月曜に今週の予定をまとめて") and a one-off background one
+  ("これ調べておいて") are the same row — deferred work is just a schedule
+  that happens once. The hourly dispatcher runs everything *overdue* rather
+  than what is due at that instant, which makes its cadence a
+  quality-of-service knob instead of a correctness one: a missed firing
+  delays work rather than losing it. Each task is claimed — rescheduled —
+  before it runs, because two overlapping dispatches acting on the world
+  twice is worse than one waiting for its next turn, and a recurring task
+  that fails keeps its schedule instead of dying silently. Schedules are
+  stored as their parts rather than cron strings: easier for the model to
+  get right and for the user to read back. Only the dispatcher uses
+  `CRON_SECRET`; managing tasks from `/tasks` stays behind the passcode.
 
-Not yet built: Schedule/Social/Browser agents, research caching, and voice
-— these follow in Phases 5–8. Instagram is
+Not yet built: Social/Browser agents, research caching, and voice — these
+follow in Phases 5–8. Instagram is
 deliberately not on that list: its API needs a Business/Creator account
 linked to a Facebook Page and an app review for anything beyond your own
 media, which is a lot of setup for little a personal agent can use.

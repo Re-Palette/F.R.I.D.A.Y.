@@ -6,6 +6,7 @@ import { createEmailDraftTool, readEmailTool, searchEmailTool, sendEmailTool } f
 import { readDriveFileTool, searchDriveTool } from "./drive";
 import { githubTool } from "./github";
 import { rememberTool } from "./remember";
+import { scheduledTasksTool } from "./scheduled-tasks";
 import type { ToolDefinition } from "./types";
 
 export const TOOLS: ToolDefinition[] = [
@@ -20,6 +21,7 @@ export const TOOLS: ToolDefinition[] = [
   readDriveFileTool,
   githubTool,
   rememberTool,
+  scheduledTasksTool,
 ];
 
 export function getTool(name: string): ToolDefinition | undefined {
