@@ -1,6 +1,7 @@
 import { db } from "@/lib/db/client";
 import { documents } from "@/lib/db/schema";
 import { routeModel, type ModelTier } from "@/lib/llm/router";
+import { createNotionPage, isNotionConfigured } from "@/lib/integrations/notion";
 import type { ToolDefinition } from "./types";
 
 const DOCUMENT_TYPES = ["report", "email", "sns_post", "slide", "script", "note", "other"] as const;
@@ -80,6 +81,15 @@ export const createDocumentTool: ToolDefinition = {
           "Your own assessment. 'high': this result matters a lot (e.g. it's being sent externally, or the " +
           "user called it important) and deserves stronger drafting/review. Defaults to 'normal'.",
       },
+      destination: {
+        type: "string",
+        enum: ["local", "notion"],
+        description:
+          "'local' (default) saves only in FRIDAY's own database. 'notion' also publishes it as a page in " +
+          "the connected Notion workspace — use this when the user wants something they can revisit/share/keep " +
+          "updating, or explicitly asks for Notion. If Notion isn't connected, this falls back to 'local' and " +
+          "says so in the result.",
+      },
     },
     required: ["type", "title", "brief"],
   },
@@ -155,8 +165,26 @@ export const createDocumentTool: ToolDefinition = {
       };
     }
 
-    const [doc] = await db.insert(documents).values({ userId: ctx.userId, type, title, content }).returning();
+    const wantsNotion = input.destination === "notion";
+    let storageRef: string | undefined;
+    let notionNote = "";
 
-    return { ok: true, content: `Saved ${type} "${title}" (document id ${doc.id}).` };
+    if (wantsNotion) {
+      if (!isNotionConfigured()) {
+        notionNote = " (Notion is not connected yet, saved locally instead — tell the user this.)";
+      } else {
+        try {
+          const page = await createNotionPage(title, content);
+          storageRef = page.url ?? undefined;
+        } catch (err) {
+          notionNote = ` (Notion publish failed, saved locally instead: ${(err as Error).message})`;
+        }
+      }
+    }
+
+    const [doc] = await db.insert(documents).values({ userId: ctx.userId, type, title, content, storageRef }).returning();
+
+    const savedWhere = storageRef ? `Notion (${storageRef})` : "FRIDAY";
+    return { ok: true, content: `Saved ${type} "${title}" to ${savedWhere} (document id ${doc.id}).${notionNote}` };
   },
 };

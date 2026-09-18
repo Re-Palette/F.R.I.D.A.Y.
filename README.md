@@ -55,11 +55,16 @@ What exists today:
     pre-written prose: drafts the content itself (at the tier `importance`
     calls for), then a self-verification pass (heuristics + an LLM
     checklist review) before saving; refuses to persist a draft that fails.
+    `destination: "notion"` additionally publishes the (already-verified)
+    content as a page in a connected Notion workspace
+    (`src/lib/integrations/notion.ts`) — falls back to local-only with a
+    note in the result if Notion isn't configured. First real external
+    tool integration (Phase 4).
   - **Deterministic intent hook** (`src/lib/agents/intent.ts`) — checked
     before any LLM call at all, for messages a direct API can answer
     without a model (e.g. a future "明日の予定ある？" → Google Calendar).
-    No detectors are registered yet since no external services are
-    connected; this is Phase 4's extension point.
+    No detectors are registered yet since no external services with a
+    direct query API are connected; this is where Calendar/Gmail plug in.
 - **Cost monitoring**: every LLM call in a run — the orchestrator's own
   turns *and* nested calls inside tools — is recorded to a shared
   `CostTracker` (`src/lib/agents/cost-tracker.ts`) and persisted onto that
@@ -93,6 +98,10 @@ scheduler/worker, and voice — these follow in Phases 4–8.
    - `AUTH_SECRET` (`npx auth secret`), `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`
      from a Google OAuth client.
    - `ALLOWED_EMAIL` — the only account permitted to sign in.
+   - `NOTION_API_KEY`/`NOTION_PARENT_PAGE_ID` — optional; see the comments in
+     `.env.example` for how to create the integration and get the page ID.
+     Without these, `create_document`'s Notion destination just falls back
+     to saving locally.
 3. Enable pgvector and create the tables:
    ```bash
    pnpm db:enable-extensions
