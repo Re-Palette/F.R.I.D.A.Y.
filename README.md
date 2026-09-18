@@ -70,8 +70,12 @@ What exists today:
     never reaches the model at all — it goes straight to the Calendar API
     and formats the real result. Any other date/range goes through the
     `get_calendar_events` tool instead (still real data, just via the
-    Agent Loop). No in-app login: since FRIDAY has none, a refresh token is
-    minted once via `pnpm calendar:get-token`
+    Agent Loop). Reads every calendar the user actually sees — shared and
+    subscribed ones included, across as many Google accounts as are
+    configured (`GOOGLE_CALENDAR_REFRESH_TOKEN`, `..._2`, ...), skipping
+    Google's generated holiday/birthday calendars and anything unticked in
+    Google Calendar. No in-app login: since FRIDAY has none, a refresh
+    token is minted once per account via `pnpm calendar:get-token`
     (`src/lib/integrations/google-calendar.ts`) and stored as an env var.
 - **Cost monitoring**: every LLM call in a run — the orchestrator's own
   turns *and* nested calls inside tools — is recorded to a shared
@@ -111,8 +115,9 @@ up), background scheduler/worker, and voice — these follow in Phases 4–8.
      to saving locally.
    - `GOOGLE_CALENDAR_CLIENT_ID`/`GOOGLE_CALENDAR_CLIENT_SECRET`/
      `GOOGLE_CALENDAR_REFRESH_TOKEN` — optional; see `.env.example` for the
-     one-time setup (`pnpm calendar:get-token`). Without these, calendar
-     questions just get told it's not connected.
+     one-time setup (`pnpm calendar:get-token`), including how to add a
+     second account as `GOOGLE_CALENDAR_REFRESH_TOKEN_2`. Without these,
+     calendar questions just get told it's not connected.
 3. Create the tables (only needed for local dev against a real DB — Vercel
    does this automatically on deploy, see below). `db:migrate` enables
    pgvector and applies the migrations in one step:

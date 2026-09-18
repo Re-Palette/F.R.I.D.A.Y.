@@ -1,9 +1,13 @@
 /**
  * Google Calendar (read-only). FRIDAY has no login screen, so this does
- * not use an in-app OAuth flow — a refresh token is minted once via
- * `pnpm calendar:get-token` (see scripts/get-google-refresh-token.ts) and
- * stored as an env var. This module only ever exchanges that refresh
- * token for short-lived access tokens server-side.
+ * not use an in-app OAuth flow — a refresh token is minted once per Google
+ * account and stored as an env var. This module only ever exchanges those
+ * refresh tokens for short-lived access tokens server-side.
+ *
+ * Several accounts can be read at once (a personal calendar alongside a
+ * work one): GOOGLE_CALENDAR_REFRESH_TOKEN plus any
+ * GOOGLE_CALENDAR_REFRESH_TOKEN_2, _3, ... They share one OAuth client —
+ * only the account that authorized each token differs.
  *
  * Japan does not observe DST, so day boundaries use a fixed UTC offset
  * (CALENDAR_TIMEZONE_OFFSET, default "+09:00") rather than full IANA
@@ -16,25 +20,36 @@ interface CachedToken {
   expiresAt: number;
 }
 
-let cachedToken: CachedToken | null = null;
+// Keyed by refresh token: each account's access token expires separately.
+const tokenCache = new Map<string, CachedToken>();
+
+/** Every configured account's refresh token, the default account first. */
+function refreshTokens(): string[] {
+  const numbered = Object.keys(process.env)
+    .filter((key) => /^GOOGLE_CALENDAR_REFRESH_TOKEN_\d+$/.test(key))
+    .sort((a, b) => Number(a.slice(a.lastIndexOf("_") + 1)) - Number(b.slice(b.lastIndexOf("_") + 1)))
+    .map((key) => process.env[key])
+    .filter((value): value is string => Boolean(value));
+
+  const first = process.env.GOOGLE_CALENDAR_REFRESH_TOKEN;
+  return first ? [first, ...numbered] : numbered;
+}
 
 export function isGoogleCalendarConfigured(): boolean {
   return Boolean(
     process.env.GOOGLE_CALENDAR_CLIENT_ID &&
       process.env.GOOGLE_CALENDAR_CLIENT_SECRET &&
-      process.env.GOOGLE_CALENDAR_REFRESH_TOKEN
+      refreshTokens().length
   );
 }
 
-async function getAccessToken(): Promise<string> {
-  if (cachedToken && cachedToken.expiresAt > Date.now() + 30_000) {
-    return cachedToken.token;
-  }
+async function getAccessToken(refreshToken: string): Promise<string> {
+  const cached = tokenCache.get(refreshToken);
+  if (cached && cached.expiresAt > Date.now() + 30_000) return cached.token;
 
   const clientId = process.env.GOOGLE_CALENDAR_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CALENDAR_CLIENT_SECRET;
-  const refreshToken = process.env.GOOGLE_CALENDAR_REFRESH_TOKEN;
-  if (!clientId || !clientSecret || !refreshToken) {
+  if (!clientId || !clientSecret) {
     throw new Error("Google Calendar is not configured. See .env.example.");
   }
 
@@ -51,8 +66,11 @@ async function getAccessToken(): Promise<string> {
   if (!res.ok) throw new Error(`Google token refresh failed: HTTP ${res.status}`);
 
   const data = (await res.json()) as { access_token: string; expires_in: number };
-  cachedToken = { token: data.access_token, expiresAt: Date.now() + data.expires_in * 1000 };
-  return cachedToken.token;
+  tokenCache.set(refreshToken, {
+    token: data.access_token,
+    expiresAt: Date.now() + data.expires_in * 1000,
+  });
+  return data.access_token;
 }
 
 export interface CalendarEvent {
@@ -102,6 +120,7 @@ async function listCalendars(token: string): Promise<CalendarRef[]> {
 async function listCalendarEvents(
   token: string,
   cal: CalendarRef,
+  isDefaultAccount: boolean,
   timeMin: string,
   timeMax: string
 ): Promise<CalendarEvent[]> {
@@ -134,7 +153,9 @@ async function listCalendarEvents(
     end: item.end?.dateTime ?? item.end?.date ?? "",
     allDay: !item.start?.dateTime,
     location: item.location,
-    calendar: cal.primary ? undefined : cal.summary,
+    // A second account's own calendar is named after that account, so
+    // labelling it is what makes "whose calendar is this?" answerable.
+    calendar: cal.primary && isDefaultAccount ? undefined : cal.summary,
   }));
 }
 
@@ -144,15 +165,19 @@ function startsAt(e: CalendarEvent): number {
   return new Date(`${e.start}T00:00:00.000Z`).getTime() - offsetMinutes() * 60_000;
 }
 
-/** timeMin/timeMax are full ISO instants (UTC). Covers every visible calendar. */
-export async function listEvents(timeMin: string, timeMax: string): Promise<CalendarEvent[]> {
-  const token = await getAccessToken();
+async function listAccountEvents(
+  refreshToken: string,
+  isDefaultAccount: boolean,
+  timeMin: string,
+  timeMax: string
+): Promise<CalendarEvent[]> {
+  const token = await getAccessToken(refreshToken);
   const calendars = await listCalendars(token);
 
   const perCalendar = await Promise.all(
     calendars.map(async (cal) => {
       try {
-        return await listCalendarEvents(token, cal, timeMin, timeMax);
+        return await listCalendarEvents(token, cal, isDefaultAccount, timeMin, timeMax);
       } catch (err) {
         // One calendar the token can list but not read shouldn't blank out
         // the rest of the day's answer.
@@ -162,7 +187,36 @@ export async function listEvents(timeMin: string, timeMax: string): Promise<Cale
     })
   );
 
-  return perCalendar.flat().sort((a, b) => startsAt(a) - startsAt(b));
+  return perCalendar.flat();
+}
+
+/**
+ * timeMin/timeMax are full ISO instants (UTC). Covers every visible calendar
+ * of every configured account.
+ */
+export async function listEvents(timeMin: string, timeMax: string): Promise<CalendarEvent[]> {
+  const tokens = refreshTokens();
+  if (!tokens.length) throw new Error("Google Calendar is not configured. See .env.example.");
+
+  const settled = await Promise.allSettled(
+    tokens.map((refreshToken, i) => listAccountEvents(refreshToken, i === 0, timeMin, timeMax))
+  );
+
+  settled.forEach((result, i) => {
+    if (result.status === "rejected") {
+      console.error(`Failed to read Google Calendar account #${i + 1}:`, result.reason);
+    }
+  });
+
+  // One revoked account shouldn't hide the others, but every account failing
+  // is an outage — reporting that as a free day would be a lie.
+  if (settled.every((result) => result.status === "rejected")) {
+    throw (settled[0] as PromiseRejectedResult).reason;
+  }
+
+  return settled
+    .flatMap((result) => (result.status === "fulfilled" ? result.value : []))
+    .sort((a, b) => startsAt(a) - startsAt(b));
 }
 
 function offsetMinutes(): number {
