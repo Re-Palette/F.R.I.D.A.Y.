@@ -54,6 +54,14 @@ export async function POST(req: NextRequest) {
           controller.enqueue(encoder.encode(fullText.slice(i, i + CHUNK_CHARS)));
           if (CHUNK_DELAY_MS) await new Promise((r) => setTimeout(r, CHUNK_DELAY_MS));
         }
+      } catch (err) {
+        // Without this, a thrown error here just closes the stream with
+        // nothing ever enqueued — the client reads a clean "done" with an
+        // empty body and shows nothing at all, not even an error. Surface
+        // something over the stream instead of failing silently, and don't
+        // persist it as a real assistant turn.
+        console.error("Agent turn failed:", err);
+        controller.enqueue(encoder.encode("（エラーが発生しました。もう一度お試しください）"));
       } finally {
         if (fullText) {
           await db.insert(messages).values({ conversationId, role: "assistant", content: fullText });
