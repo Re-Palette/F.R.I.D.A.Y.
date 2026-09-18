@@ -11,7 +11,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
-    "calendar:get-token": "tsx scripts/get-google-refresh-token.ts"
+    "calendar:get-token": "tsx scripts/get-google-refresh-token.ts",
+    "vercel-build": "tsx scripts/enable-extensions.ts && drizzle-kit migrate && next build"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.126.0",

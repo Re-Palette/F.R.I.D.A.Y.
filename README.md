@@ -113,7 +113,8 @@ up), background scheduler/worker, and voice — these follow in Phases 4–8.
      `GOOGLE_CALENDAR_REFRESH_TOKEN` — optional; see `.env.example` for the
      one-time setup (`pnpm calendar:get-token`). Without these, calendar
      questions just get told it's not connected.
-3. Enable pgvector and create the tables:
+3. Enable pgvector and create the tables (only needed for local dev against
+   a real DB — Vercel does this automatically on deploy, see below):
    ```bash
    pnpm db:enable-extensions
    pnpm db:generate
@@ -122,6 +123,17 @@ up), background scheduler/worker, and voice — these follow in Phases 4–8.
 4. `pnpm dev` and open http://localhost:3000.
 
 ## Deploying (Vercel)
+
+**Migrations run automatically on every Vercel deploy.** `package.json`
+defines a `vercel-build` script (Vercel uses it in place of `build`
+automatically, no dashboard config needed) that enables pgvector and runs
+`drizzle-kit migrate` — using Vercel's own network, which can reach
+Neon — before `next build`. Generated SQL under `drizzle/` is committed to
+the repo; only `pnpm db:generate` needs to run locally (schema-only, no DB
+connection) whenever `src/lib/db/schema/` changes, then commit the result.
+Local `pnpm dev`/`pnpm build` are unaffected — they still don't touch the
+database, on the same lazy-init/build-doesn't-need-secrets basis as
+before.
 
 **This deployment has no login.** Anyone with the URL can read every
 conversation/document and can spend your `ANTHROPIC_API_KEY` quota by
