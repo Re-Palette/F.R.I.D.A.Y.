@@ -47,13 +47,13 @@ export function HeroBackdrop() {
             rather than two unrelated ellipses. */}
         <g filter="url(#orbit-bloom)" opacity="0.75">
           <ellipse
-            cx="800" cy="450" rx="740" ry="165"
-            fill="none" stroke="url(#orbit-fade)" strokeWidth="2"
+            cx="800" cy="450" rx="560" ry="112"
+            fill="none" stroke="url(#orbit-fade)" strokeWidth="1.5"
             transform="rotate(-7 800 450)"
           />
           <ellipse
-            cx="800" cy="450" rx="700" ry="120"
-            fill="none" stroke="url(#orbit-fade)" strokeWidth="1.5"
+            cx="800" cy="450" rx="520" ry="82"
+            fill="none" stroke="url(#orbit-fade)" strokeWidth="1.25"
             transform="rotate(6 800 450)"
             opacity="0.6"
           />
@@ -62,7 +62,7 @@ export function HeroBackdrop() {
         {/* Markers sit far out on the crosshair rather than at the ring's
             edge: the ring is sized in CSS, so anything meant to touch it
             belongs in StatusRing where the geometry is known. */}
-        {[150, 1450].map((x) => (
+        {[300, 1300].map((x) => (
           <path
             key={x}
             d={`M ${x} 443 L ${x + 7} 450 L ${x} 457 L ${x - 7} 450 Z`}

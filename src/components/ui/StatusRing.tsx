@@ -57,9 +57,10 @@ export function StatusRing({ size = 160, active = true, label }: StatusRingProps
             <feGaussianBlur stdDeviation="3" />
           </filter>
           {/* Without this the wedge's straight edges read as a rendering
-              artefact rather than a sweep. */}
+              artefact rather than a sweep — but kept slight, since at the
+              sizes this renders a heavier blur turns it into a grey smudge. */}
           <filter id="ring-sweep-soft" x="-30%" y="-30%" width="160%" height="160%">
-            <feGaussianBlur stdDeviation="6" />
+            <feGaussianBlur stdDeviation="3.5" />
           </filter>
           <radialGradient id="ring-core">
             <stop offset="55%" stopColor="#000" stopOpacity="0" />
@@ -168,7 +169,7 @@ export function StatusRing({ size = 160, active = true, label }: StatusRingProps
             d={`M ${C} ${C} L ${C + 104} ${C - 34} A 108 108 0 0 1 ${C + 104} ${C + 34} Z`}
             fill="url(#ring-sweep)"
             filter="url(#ring-sweep-soft)"
-            opacity={0.22}
+            opacity={0.14}
           />
         </g>
 

@@ -74,12 +74,12 @@ export function HomeHero() {
 
         {/* Width is set here, not inherited: as a flex child sized by its
             content the ring collapsed to the width of the line beneath it. */}
-        <div className="relative flex w-[min(72vw,34rem)] items-center justify-center">
-          <StatusRing size={544} active />
+        <div className="relative flex w-[min(58vw,21rem)] items-center justify-center">
+          <StatusRing size={336} active />
 
           {/* Only the mark goes inside, sized so it spans the inner face the
               way the reference does rather than spilling over the band. */}
-          <h1 className="absolute text-sm font-light tracking-[0.25em] [text-shadow:0_0_20px_rgba(255,122,26,0.45)] sm:text-2xl sm:tracking-[0.4em]">
+          <h1 className="absolute text-[11px] font-light tracking-[0.22em] [text-shadow:0_0_16px_rgba(255,122,26,0.45)] sm:text-base sm:tracking-[0.32em]">
             F.R.I.D.A.Y.
           </h1>
 
