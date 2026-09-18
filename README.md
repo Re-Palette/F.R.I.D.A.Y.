@@ -19,11 +19,21 @@ What exists today:
   users, conversations, messages, memories (pgvector-ready), projects,
   tasks/subtasks, events, documents/sources, tool_connections, agent_runs,
   approvals, drafts, activity_logs.
-- **No authentication** (explicit choice): this deployment has no login
-  step. Anyone who can reach the deployed URL uses it as the single owner
-  identified by `ALLOWED_EMAIL` (a label, not a gate). Google OAuth
-  (Auth.js v5) was built and then removed at the owner's request after
-  weighing the exposure/cost risk — see git history if you want it back.
+- **No per-user authentication** (explicit choice): there are no accounts.
+  Whoever uses the app is the single owner identified by `ALLOWED_EMAIL` (a
+  label, not a gate). Google OAuth (Auth.js v5) was built and then removed
+  at the owner's request after weighing the exposure/cost risk — see git
+  history if you want it back.
+- **Optional access passcode** (`src/proxy.ts`, `/unlock`): setting
+  `APP_PASSCODE` puts one shared passcode in front of every page and API
+  route; leaving it unset keeps the open behaviour above, so the file is
+  inert until you opt in. Unlocking stores an HMAC of the passcode in a
+  long-lived HttpOnly cookie, so it is asked once per browser — an
+  installed PWA, or a tab left open, is never interrupted later. Changing
+  the passcode invalidates every device at once. Note there is no rate
+  limiting behind it, so the passcode needs to be long and random.
+- **Installable** (`src/app/manifest.ts`): Chrome offers a real install, and
+  the app opens in its own window with no address bar.
 - Provider-agnostic LLM layer (`src/lib/llm/`) backed by **Anthropic Claude**
   (`src/lib/llm/anthropic.ts`). Claude Code is only the dev tool building
   this app — the deployed app makes its own Anthropic API calls with its
@@ -159,13 +169,13 @@ Production — see below). A `DATABASE_URL` that *is* set but unreachable,
 or a migration that fails to apply, still fails the build, so code never
 ships against a schema that didn't get updated.
 
-**This deployment has no login.** Anyone with the URL can read every
-conversation/document and can spend your `ANTHROPIC_API_KEY` quota by
-hitting `/api/chat` directly — there is no per-request identity check to
-rate-limit against. If that's not what you want, the two safer options
-(re-add real auth, or gate behind a single shared passcode) are a smaller
-change than it sounds; ask before assuming this is fine for a URL anyone
-might find.
+**Without `APP_PASSCODE` set, this deployment is open.** Anyone with the
+URL can read every conversation/document and can spend your
+`ANTHROPIC_API_KEY` quota by hitting `/api/chat` directly. Setting
+`APP_PASSCODE` closes that (see the Status note above) and costs one
+passcode entry per browser; it is worth doing before adding any tool that
+acts outside FRIDAY — sending mail, in particular, since the Approval
+Queue confirms *intent* but cannot tell who is confirming.
 
 Set every var from `.env.example` (`DATABASE_URL`, `ANTHROPIC_API_KEY`,
 `ALLOWED_EMAIL`; the `ANTHROPIC_*_MODEL`/`FORCE_MODEL_TIER`/Notion vars are
