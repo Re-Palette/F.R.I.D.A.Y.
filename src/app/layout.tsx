@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Space_Grotesk, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -17,6 +17,13 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "F.R.I.D.A.Y.",
   description: "Personal Intelligence Operating System",
+  appleWebApp: { capable: true, title: "FRIDAY", statusBarStyle: "black-translucent" },
+};
+
+export const viewport: Viewport = {
+  // Paints the installed window's chrome the same near-black as the app, so
+  // there is no light seam around it.
+  themeColor: "#050505",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
