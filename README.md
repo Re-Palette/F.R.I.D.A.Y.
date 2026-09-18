@@ -19,7 +19,11 @@ What exists today:
   users, conversations, messages, memories (pgvector-ready), projects,
   tasks/subtasks, events, documents/sources, tool_connections, agent_runs,
   approvals, drafts, activity_logs.
-- Single-user auth (Auth.js v5, Google OAuth, gated by `ALLOWED_EMAIL`).
+- **No authentication** (explicit choice): this deployment has no login
+  step. Anyone who can reach the deployed URL uses it as the single owner
+  identified by `ALLOWED_EMAIL` (a label, not a gate). Google OAuth
+  (Auth.js v5) was built and then removed at the owner's request after
+  weighing the exposure/cost risk — see git history if you want it back.
 - Provider-agnostic LLM layer (`src/lib/llm/`) backed by **Anthropic Claude**
   (`src/lib/llm/anthropic.ts`). Claude Code is only the dev tool building
   this app — the deployed app makes its own Anthropic API calls with its
@@ -95,9 +99,8 @@ scheduler/worker, and voice — these follow in Phases 4–8.
      (`ANTHROPIC_FAST_MODEL`/`ANTHROPIC_DEFAULT_MODEL`/`ANTHROPIC_POWERFUL_MODEL`)
      default to Haiku/Haiku/Opus — override via env vars only if you want a
      different split, no code change needed either way.
-   - `AUTH_SECRET` (`npx auth secret`), `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`
-     from a Google OAuth client.
-   - `ALLOWED_EMAIL` — the only account permitted to sign in.
+   - `ALLOWED_EMAIL` — labels the single owner row; not an access gate (see
+     the Status note above — there is no login).
    - `NOTION_API_KEY`/`NOTION_PARENT_PAGE_ID` — optional; see the comments in
      `.env.example` for how to create the integration and get the page ID.
      Without these, `create_document`'s Notion destination just falls back
@@ -112,17 +115,23 @@ scheduler/worker, and voice — these follow in Phases 4–8.
 
 ## Deploying (Vercel)
 
+**This deployment has no login.** Anyone with the URL can read every
+conversation/document and can spend your `ANTHROPIC_API_KEY` quota by
+hitting `/api/chat` directly — there is no per-request identity check to
+rate-limit against. If that's not what you want, the two safer options
+(re-add real auth, or gate behind a single shared passcode) are a smaller
+change than it sounds; ask before assuming this is fine for a URL anyone
+might find.
+
 Set every var from `.env.example` (`DATABASE_URL`, `ANTHROPIC_API_KEY`,
-`AUTH_SECRET`, `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, `ALLOWED_EMAIL`; the
-`ANTHROPIC_*_MODEL`/`FORCE_MODEL_TIER` overrides are optional) in the
-Vercel project's **Settings → Environment Variables**, for whichever
-environment you're deploying (Production/Preview/Development each have
-their own list — a var set only under Production won't exist during a
-Preview build). None of these are required for `next build` to *succeed*
-(see the note in `src/lib/auth/index.ts` and `src/lib/db/client.ts` — both
-are checked lazily at first real use, not at import time), but the deployed
-app won't do anything useful without them: sign-in is denied and any
-database query throws until they're set.
+`ALLOWED_EMAIL`; the `ANTHROPIC_*_MODEL`/`FORCE_MODEL_TIER`/Notion vars are
+optional) in the Vercel project's **Settings → Environment Variables**, for
+whichever environment you're deploying (Production/Preview/Development
+each have their own list — a var set only under Production won't exist
+during a Preview build). None of these are required for `next build` to
+*succeed* (see the note in `src/lib/db/client.ts` — checked lazily at first
+real use, not at import time), but the deployed app won't do anything
+useful without `DATABASE_URL`/`ANTHROPIC_API_KEY` set.
 
 ## Scripts
 

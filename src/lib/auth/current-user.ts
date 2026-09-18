@@ -1,24 +1,21 @@
 import { eq } from "drizzle-orm";
-import { auth } from "@/lib/auth";
 import { db } from "@/lib/db/client";
 import { users } from "@/lib/db/schema";
 
 /**
- * FRIDAY is single-user (Master Brief: personal agent, not multi-tenant).
- * We still keep a `users` row so every other table has a stable owner id
- * to reference, but there is exactly one row in practice.
+ * FRIDAY runs unauthenticated on this deployment (explicit choice — see the
+ * removed Google OAuth flow). There is no session to read, so every
+ * request resolves to the same single owner row instead of checking one.
+ * ALLOWED_EMAIL is kept only as an identity label for that row, not as an
+ * access gate — anyone who can reach this deployment's URL can use it as
+ * this user.
  */
 export async function getCurrentUser() {
-  const session = await auth();
-  if (!session?.user?.email) return null;
+  const ownerEmail = (process.env.ALLOWED_EMAIL || "owner@local").toLowerCase();
 
-  const email = session.user.email.toLowerCase();
-  const [existing] = await db.select().from(users).where(eq(users.email, email)).limit(1);
+  const [existing] = await db.select().from(users).where(eq(users.email, ownerEmail)).limit(1);
   if (existing) return existing;
 
-  const [created] = await db
-    .insert(users)
-    .values({ email, name: session.user.name ?? undefined })
-    .returning();
+  const [created] = await db.insert(users).values({ email: ownerEmail }).returning();
   return created;
 }
