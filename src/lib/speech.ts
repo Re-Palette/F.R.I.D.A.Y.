@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { configuredReadings, toSpeakable } from "@/lib/speech-text";
 
 /**
  * Voice in and out, through the browser.
@@ -300,7 +301,8 @@ function speakWithBrowser(text: string, mine: number, lang: string, onEnd?: () =
 /**
  * Reads `text` aloud, replacing anything already being spoken.
  *
- * Prefers the ElevenLabs voice and falls back to the browser's own synthesis,
+ * The text is rewritten for the ear first (speech-text.ts): dates, times and
+ * numbers into the words a person would say, markup and links out. Prefers the ElevenLabs voice and falls back to the browser's own synthesis,
  * so the app still talks when no voice is configured, the quota runs out, or
  * the request fails. Nothing here knows which it will be — that is settled by
  * /api/speech, where the key lives.
@@ -312,7 +314,9 @@ function speakWithBrowser(text: string, mine: number, lang: string, onEnd?: () =
  */
 export function speak(text: string, options: { lang?: string; onEnd?: () => void } = {}) {
   const { lang = "ja-JP", onEnd } = options;
-  const trimmed = text.trim();
+  // What is spoken is not what is shown: a reply written for the eye reads
+  // terribly out loud. See speech-text.ts — the subtitle keeps the original.
+  const trimmed = toSpeakable(text, configuredReadings());
 
   stopSpeaking();
   const mine = generation;

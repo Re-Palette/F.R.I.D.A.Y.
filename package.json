@@ -11,6 +11,7 @@
     "db:migrate": "tsx scripts/migrate.ts",
     "db:studio": "drizzle-kit studio",
     "calendar:get-token": "tsx scripts/get-google-refresh-token.ts",
+    "test:speech": "tsx scripts/test-speech-text.ts",
     "vercel-build": "tsx scripts/migrate.ts && next build"
   },
   "dependencies": {

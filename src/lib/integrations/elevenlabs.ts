@@ -9,6 +9,7 @@ const API_BASE = "https://api.elevenlabs.io/v1";
  */
 const DEFAULT_MODEL = "eleven_flash_v2_5";
 const DEFAULT_FORMAT = "mp3_44100_128";
+const LANGUAGE = "ja";
 
 /**
  * ElevenLabs bills per character, so an agent that decides to read out a long
@@ -36,6 +37,8 @@ export async function synthesizeSpeech(text: string): Promise<Response> {
     throw new Error("ELEVENLABS_API_KEY / ELEVENLABS_VOICE_ID are not set. See .env.example.");
   }
 
+  const model = process.env.ELEVENLABS_MODEL_ID || DEFAULT_MODEL;
+
   const url = `${API_BASE}/text-to-speech/${encodeURIComponent(voiceId)}/stream?output_format=${DEFAULT_FORMAT}`;
   const res = await fetch(url, {
     method: "POST",
@@ -46,7 +49,12 @@ export async function synthesizeSpeech(text: string): Promise<Response> {
     },
     body: JSON.stringify({
       text: text.slice(0, MAX_SPEECH_CHARS),
-      model_id: process.env.ELEVENLABS_MODEL_ID || DEFAULT_MODEL,
+      model_id: model,
+      // Left to guess, a reply that opens with a product name or a stretch of
+      // English gets read with English phonology and the Japanese around it
+      // suffers for it. Only the Flash and Turbo models accept this field —
+      // the others reject the request outright — so it is sent to those only.
+      ...(/flash|turbo/i.test(model) ? { language_code: LANGUAGE } : {}),
     }),
   });
 

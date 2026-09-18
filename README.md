@@ -215,6 +215,11 @@ media, which is a lot of setup for little a personal agent can use.
      synthesis instead, and it falls back to that whenever ElevenLabs fails
      or the quota runs out. See `.env.example` for where to design a voice
      and find its ID.
+   - `NEXT_PUBLIC_SPEECH_READINGS` — optional; readings for words the voice
+     gets wrong (`書き方=よみかた`, comma separated). Dates, times, numbers
+     and markup are already rewritten for the ear before anything is spoken
+     — see `src/lib/speech-text.ts`, checked by `pnpm test:speech` — so this
+     is only for proper nouns.
 3. Create the tables (only needed for local dev against a real DB — Vercel
    does this automatically on deploy, see below). `db:migrate` enables
    pgvector and applies the migrations in one step:
