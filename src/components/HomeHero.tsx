@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { StatusRing } from "@/components/ui/StatusRing";
@@ -98,7 +99,12 @@ export function HomeHero() {
 
       <footer className="flex items-center justify-between pt-4 text-[10px] text-fg-faint">
         <span>F.R.I.D.A.Y. / v1.0.0</span>
-        <span />
+        <Link
+          href="/approvals"
+          className="tracking-[var(--tracking-wider)] hover:text-fg-muted"
+        >
+          承認待ち
+        </Link>
       </footer>
     </div>
   );

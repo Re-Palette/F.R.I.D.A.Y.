@@ -91,12 +91,23 @@ What exists today:
   typewriter effect replays the completed answer in chunks — see the note
   in `route.ts`.
 
+- **Approval Queue** (`src/lib/agents/approvals.ts`, `/approvals`): Master
+  Brief §12's permission levels, enforced. A tool decides per *call* whether
+  the work needs a human — the same tool can be harmless or consequential
+  depending on its input, so `create_document` saves locally on its own but
+  parks a Notion publish for approval. A queued call is never executed: the
+  Agent Loop writes an `approvals` row plus a readable `drafts` preview and
+  tells the model to say it's waiting, not that it's done. Approving runs
+  the tool with exactly the approved input, under its own `agent_runs` row
+  so the cost is still accounted for, and posts the outcome back into the
+  conversation it came from. **This is confirmation, not authorization** —
+  with no login, whoever can reach the URL can also approve. It stops the
+  agent acting unilaterally; it does not decide who may act.
+
 Not yet built: Schedule/Social/Browser agents, remaining tool integrations
-(Gmail/Drive/Instagram/GitHub — Gmail in particular needs the Approval
-Queue below it first, since sending mail is Level 2), the Approval Queue
-UI (all current tools are Level 1/auto, so nothing needs it yet), semantic
-memory/research caching (the Memory tables exist but retrieval isn't wired
-up), background scheduler/worker, and voice — these follow in Phases 4–8.
+(Gmail/Drive/Instagram/GitHub), semantic memory/research caching (the
+Memory tables exist but retrieval isn't wired up), background
+scheduler/worker, and voice — these follow in Phases 4–8.
 
 ## Setup
 

@@ -94,6 +94,16 @@ export const createDocumentTool: ToolDefinition = {
     required: ["type", "title", "brief"],
   },
   level: 1,
+  approval(input) {
+    // Saving to FRIDAY's own database is private and undoable. Publishing a
+    // page into a Notion workspace is neither, so that half of this tool is
+    // the user's call to make, not the agent's.
+    if (input.destination !== "notion") return null;
+    return {
+      level: 2,
+      summary: `Notion に「${String(input.title ?? "").trim() || "(無題)"}」を公開する`,
+    };
+  },
   async execute(input, ctx) {
     const type = DOCUMENT_TYPES.includes(input.type as DocumentType) ? (input.type as DocumentType) : "other";
     const title = String(input.title ?? "").trim();

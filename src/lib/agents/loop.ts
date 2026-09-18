@@ -4,8 +4,10 @@ import { agentRuns, sources } from "@/lib/db/schema";
 import { routeModel } from "@/lib/llm/router";
 import type { ContentBlock, LLMMessage } from "@/lib/llm/types";
 import { getTool, toLLMToolDefs } from "./tools";
+import type { ToolDefinition, ToolResult } from "./tools";
 import { extractSourcesFromContent } from "./research";
 import { CostTracker } from "./cost-tracker";
+import { createApproval } from "./approvals";
 
 export interface AgentLoopLimits {
   maxSteps: number;
@@ -74,6 +76,46 @@ async function persistDiscoveredSources(content: ContentBlock[]) {
  * tier, recorded into the same `costTracker` so agent_runs reflects the
  * run's true total cost, not just the orchestrator's share of it.
  */
+/**
+ * Level 1 tools run. Anything the tool flags as consequential for this input
+ * is parked for a human instead, and the model is told so — it must not
+ * report the action as done, and it must not retry to get around the gate.
+ */
+async function runOrQueue(
+  tool: ToolDefinition,
+  input: Record<string, unknown>,
+  params: AgentLoopParams,
+  costTracker: CostTracker
+): Promise<ToolResult> {
+  const request = tool.approval?.(input) ?? null;
+
+  if (request) {
+    const id = await createApproval({
+      userId: params.userId,
+      conversationId: params.conversationId,
+      tool: tool.name,
+      input,
+      level: request.level,
+      summary: request.summary,
+    });
+    return {
+      ok: true,
+      content:
+        `NOT EXECUTED — queued for the user's approval (approval id ${id}): ${request.summary}. ` +
+        `Tell the user it is waiting for their approval and that they can approve it from the 承認待ち screen. ` +
+        `Do not claim it has been done, and do not call this tool again for the same request.`,
+    };
+  }
+
+  return tool
+    .execute(input, {
+      userId: params.userId,
+      conversationId: params.conversationId,
+      costTracker,
+    })
+    .catch((err: Error) => ({ ok: false, content: `Tool error: ${err.message}` }));
+}
+
 export async function runAgentLoop(params: AgentLoopParams): Promise<AgentLoopResult> {
   const limits = { ...DEFAULT_LIMITS, ...params.limits };
   const { provider, model } = routeModel("chat");
@@ -158,13 +200,7 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<AgentLoopRe
         toolUses.map(async (call): Promise<ContentBlock> => {
           const tool = getTool(call.name);
           const outcome = tool
-            ? await tool
-                .execute(call.input, {
-                  userId: params.userId,
-                  conversationId: params.conversationId,
-                  costTracker,
-                })
-                .catch((err: Error) => ({ ok: false, content: `Tool error: ${err.message}` }))
+            ? await runOrQueue(tool, call.input, params, costTracker)
             : { ok: false, content: `Unknown tool: ${call.name}` };
 
           steps.push({ tool: call.name, ok: outcome.ok, summary: outcome.content.slice(0, 300) });
