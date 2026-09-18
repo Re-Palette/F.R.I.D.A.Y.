@@ -3,6 +3,10 @@ import { projects, users } from "./core";
 
 export const tasks = pgTable("tasks", {
   id: uuid("id").primaryKey().defaultRandom(),
+  // Nullable only so adding it can't fail a migration against rows that
+  // predate it — every new plan sets it. Without this a plan belonged to
+  // nobody, which is fine until there is a screen that has to ask whose it is.
+  userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }),
   projectId: uuid("project_id").references(() => projects.id, { onDelete: "cascade" }),
   goal: text("goal").notNull(),
   status: text("status", {

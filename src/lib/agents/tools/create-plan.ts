@@ -96,6 +96,7 @@ export const createPlanTool: ToolDefinition = {
     const [task] = await db
       .insert(tasks)
       .values({
+        userId: ctx.userId,
         goal,
         priority: plan.priority ?? "normal",
         deadline: deadline && !Number.isNaN(deadline.getTime()) ? deadline : undefined,
