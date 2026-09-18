@@ -254,14 +254,36 @@ export function localDateString(offsetDays = 0): string {
   return local.toISOString().slice(0, 10);
 }
 
+/**
+ * Local calendar date and wall-clock time of an instant. Shifting by the
+ * configured offset lets the UTC getters read local time, as localDateString
+ * does; reading them off the raw instant printed everything in UTC — a 14:00
+ * meeting in Tokyo showed as 05:00.
+ */
+function localParts(iso: string) {
+  const d = new Date(new Date(iso).getTime() + offsetMinutes() * 60_000);
+  return {
+    date: d.toISOString().slice(0, 10),
+    monthDay: `${d.getUTCMonth() + 1}/${d.getUTCDate()}`,
+    time: `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`,
+  };
+}
+
 export function formatEventLine(e: CalendarEvent): string {
   const source = e.calendar ? `［${e.calendar}］` : "";
-  if (e.allDay) return `- ${e.title}（終日）${e.location ? ` @ ${e.location}` : ""}${source}`;
-  // Shift the instant by the configured offset so the UTC getters read local
-  // wall-clock time, as localDateString does. Reading them off the raw
-  // instant printed every event in UTC — a 14:00 meeting in Tokyo showed as
-  // 05:00.
-  const local = new Date(new Date(e.start).getTime() + offsetMinutes() * 60_000);
-  const time = `${String(local.getUTCHours()).padStart(2, "0")}:${String(local.getUTCMinutes()).padStart(2, "0")}`;
-  return `- ${time} ${e.title}${e.location ? ` @ ${e.location}` : ""}${source}`;
+  const where = e.location ? ` @ ${e.location}` : "";
+  if (e.allDay) return `- ${e.title}（終日）${where}${source}`;
+
+  const start = localParts(e.start);
+  const end = e.end ? localParts(e.end) : null;
+
+  // Google returns any event overlapping the queried day, so a multi-day
+  // event asked about mid-run would otherwise show only its start time and
+  // read as if it began today. Spell out the span when there is one.
+  const when =
+    end && end.date !== start.date
+      ? `${start.monthDay} ${start.time} 〜 ${end.monthDay} ${end.time}`
+      : start.time;
+
+  return `- ${when} ${e.title}${where}${source}`;
 }
