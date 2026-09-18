@@ -15,13 +15,7 @@
  * simpler. Revisit if FRIDAY is ever used outside a fixed-offset zone.
  */
 
-interface CachedToken {
-  token: string;
-  expiresAt: number;
-}
-
-// Keyed by refresh token: each account's access token expires separately.
-const tokenCache = new Map<string, CachedToken>();
+import { googleAccessToken, googleClientCredentials } from "./google-oauth";
 
 /** Every configured account's refresh token, the default account first. */
 function refreshTokens(): string[] {
@@ -36,41 +30,7 @@ function refreshTokens(): string[] {
 }
 
 export function isGoogleCalendarConfigured(): boolean {
-  return Boolean(
-    process.env.GOOGLE_CALENDAR_CLIENT_ID &&
-      process.env.GOOGLE_CALENDAR_CLIENT_SECRET &&
-      refreshTokens().length
-  );
-}
-
-async function getAccessToken(refreshToken: string): Promise<string> {
-  const cached = tokenCache.get(refreshToken);
-  if (cached && cached.expiresAt > Date.now() + 30_000) return cached.token;
-
-  const clientId = process.env.GOOGLE_CALENDAR_CLIENT_ID;
-  const clientSecret = process.env.GOOGLE_CALENDAR_CLIENT_SECRET;
-  if (!clientId || !clientSecret) {
-    throw new Error("Google Calendar is not configured. See .env.example.");
-  }
-
-  const res = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      client_id: clientId,
-      client_secret: clientSecret,
-      refresh_token: refreshToken,
-      grant_type: "refresh_token",
-    }),
-  });
-  if (!res.ok) throw new Error(`Google token refresh failed: HTTP ${res.status}`);
-
-  const data = (await res.json()) as { access_token: string; expires_in: number };
-  tokenCache.set(refreshToken, {
-    token: data.access_token,
-    expiresAt: Date.now() + data.expires_in * 1000,
-  });
-  return data.access_token;
+  return Boolean(googleClientCredentials() && refreshTokens().length);
 }
 
 export interface CalendarEvent {
@@ -164,7 +124,7 @@ async function listAccountEvents(
   timeMin: string,
   timeMax: string
 ): Promise<CalendarEvent[]> {
-  const token = await getAccessToken(refreshToken);
+  const token = await googleAccessToken(refreshToken);
   const calendars = await listCalendars(token);
 
   const perCalendar = await Promise.all(
