@@ -129,10 +129,19 @@ What exists today:
   with no login, whoever can reach the URL can also approve. It stops the
   agent acting unilaterally; it does not decide who may act.
 
+- **Memory** (`src/lib/agents/memory.ts`, `remember` tool): what FRIDAY
+  learns about the user survives the conversation. The model saves a fact
+  as part of a turn it's already taking, so remembering costs no extra LLM
+  call, and everything remembered goes into the system prompt on every
+  turn. Retrieval is deliberately not semantic: Anthropic has no embeddings
+  endpoint, so vector search would mean a second paid provider, and at one
+  user's scale the whole store fits in the prompt anyway. The
+  `memories.embedding` column and its HNSW index stay unused until it
+  doesn't — only `recallMemories()` would change.
+
 Not yet built: Schedule/Social/Browser agents, remaining tool integrations
-(Gmail/Drive/Instagram/GitHub), semantic memory/research caching (the
-Memory tables exist but retrieval isn't wired up), background
-scheduler/worker, and voice — these follow in Phases 4–8.
+(Drive/Instagram/GitHub), research caching, background scheduler/worker,
+and voice — these follow in Phases 5–8.
 
 ## Setup
 

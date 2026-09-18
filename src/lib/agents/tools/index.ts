@@ -3,6 +3,7 @@ import { createPlanTool } from "./create-plan";
 import { createDocumentTool } from "./create-document";
 import { getCalendarEventsTool } from "./get-calendar-events";
 import { createEmailDraftTool, readEmailTool, searchEmailTool, sendEmailTool } from "./email";
+import { rememberTool } from "./remember";
 import type { ToolDefinition } from "./types";
 
 export const TOOLS: ToolDefinition[] = [
@@ -13,6 +14,7 @@ export const TOOLS: ToolDefinition[] = [
   readEmailTool,
   createEmailDraftTool,
   sendEmailTool,
+  rememberTool,
 ];
 
 export function getTool(name: string): ToolDefinition | undefined {
