@@ -1,5 +1,5 @@
 import {
-  formatEventLine,
+  describeEvents,
   isGoogleCalendarConfigured,
   listEvents,
   localDateRangeToUtc,
@@ -54,9 +54,9 @@ function detectCalendarIntent(message: string): DeterministicIntentMatch | null 
       const date = localDateString(offsetDays);
       const { timeMin, timeMax } = localDateRangeToUtc(date);
       try {
-        const events = await listEvents(timeMin, timeMax);
-        if (!events.length) return `${label}の予定はありません。`;
-        return `${label}の予定:\n${events.map(formatEventLine).join("\n")}`;
+        // Spoken, not listed: this answer reaches the user exactly as it is
+        // written, with no model in between to turn it into sentences.
+        return describeEvents(label, await listEvents(timeMin, timeMax));
       } catch (err) {
         return `カレンダーの取得に失敗しました: ${(err as Error).message}`;
       }

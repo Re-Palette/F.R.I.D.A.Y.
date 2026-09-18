@@ -11,9 +11,10 @@
     "db:migrate": "tsx scripts/migrate.ts",
     "db:studio": "drizzle-kit studio",
     "calendar:get-token": "tsx scripts/get-google-refresh-token.ts",
-    "test": "tsx scripts/test-speech-text.ts && tsx scripts/test-wake-word.ts",
+    "test": "tsx scripts/test-speech-text.ts && tsx scripts/test-wake-word.ts && tsx scripts/test-calendar-text.ts",
     "test:speech": "tsx scripts/test-speech-text.ts",
     "test:wake": "tsx scripts/test-wake-word.ts",
+    "test:calendar": "tsx scripts/test-calendar-text.ts",
     "vercel-build": "tsx scripts/migrate.ts && next build"
   },
   "dependencies": {

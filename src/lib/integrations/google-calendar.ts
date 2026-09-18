@@ -215,13 +215,56 @@ export function localDateString(offsetDays = 0): string {
  */
 function localParts(iso: string) {
   const d = new Date(new Date(iso).getTime() + offsetMinutes() * 60_000);
+  const month = d.getUTCMonth() + 1;
+  const day = d.getUTCDate();
+  const hour = d.getUTCHours();
+  const minute = d.getUTCMinutes();
   return {
     date: d.toISOString().slice(0, 10),
-    monthDay: `${d.getUTCMonth() + 1}/${d.getUTCDate()}`,
-    time: `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`,
+    monthDay: `${month}/${day}`,
+    time: `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`,
+    /** The same moment as it would be said rather than written. */
+    spokenDate: `${month}月${day}日`,
+    spokenTime: minute === 0 ? `${hour}時` : `${hour}時${minute}分`,
   };
 }
 
+/**
+ * The day's schedule as a sentence.
+ *
+ * formatEventLine below writes the same events as a list, which is right
+ * where the reader is the model — structure is what it needs to reason over.
+ * This is for the other direction: answers that go straight to the user
+ * without a model in between. Read out, a list is a list — "ハイフン、14時、
+ * 打ち合わせ" — and asking what's on tomorrow should be answered the way a
+ * person would answer it.
+ */
+export function describeEvents(label: string, events: CalendarEvent[]): string {
+  if (!events.length) return `${label}の予定はありません。`;
+
+  const described = events.map(describeEvent);
+  if (described.length === 1) return `${label}は${described[0]}です。`;
+
+  return `${label}は${described.length}件あります。${described.join("、")}です。`;
+}
+
+function describeEvent(e: CalendarEvent): string {
+  const where = e.location ? `${e.location}で` : "";
+  if (e.allDay) return `終日${where}${e.title}`;
+
+  const start = localParts(e.start);
+  const end = e.end ? localParts(e.end) : null;
+
+  // A multi-day event asked about mid-run would otherwise be announced at
+  // its start time, as if it began today.
+  if (end && end.date !== start.date) {
+    return `${start.spokenDate}の${start.spokenTime}から${end.spokenDate}の${end.spokenTime}まで${where}${e.title}`;
+  }
+
+  return `${start.spokenTime}から${where}${e.title}`;
+}
+
+/** One event as a line, for the model to read — see describeEvents for the user. */
 export function formatEventLine(e: CalendarEvent): string {
   const where = e.location ? ` @ ${e.location}` : "";
   if (e.allDay) return `- ${e.title}（終日）${where}`;
