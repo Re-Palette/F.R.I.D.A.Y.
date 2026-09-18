@@ -9,8 +9,8 @@ proposal (shared in the original planning conversation) for the full design.
 
 ## Status
 
-**Phase 1 (Foundation) + a functional slice of Phase 2 (Core AI).** What
-exists today:
+**Phase 1 (Foundation), Phase 2 (Core AI), and Phase 3 (Agent System).**
+What exists today:
 
 - Next.js 16 / React 19 / TypeScript / Tailwind v4 project, single dark
   theme derived from the reference design (see `src/app/globals.css` for
@@ -23,15 +23,32 @@ exists today:
 - Provider-agnostic LLM layer (`src/lib/llm/`) with a model router that
   maps task kinds to cost tiers (low/standard/high), currently backed by
   Anthropic.
-- A working Main Agent conversational loop: the hero screen's input starts
-  a conversation, which streams a real Claude response and persists every
-  turn to Postgres (`src/lib/agents/main-agent.ts`,
-  `src/app/api/chat/route.ts`).
+- **Agent Loop** (`src/lib/agents/loop.ts`): the Main Agent's
+  Observe→Plan→Act→Evaluate loop, bounded by step/timeout/token/cost
+  guardrails and recorded to `agent_runs`. Delegation to sub-agents happens
+  through tool calls (Anthropic's orchestrator-worker pattern), not a
+  separate hardcoded router.
+  - **Planning Agent** (`create_plan` tool) — decomposes a goal into
+    subtasks, including work the user didn't explicitly ask for but that's
+    genuinely needed (derived tasks), and persists them to `tasks`/`subtasks`.
+  - **Research Agent** — uses Anthropic's server-side `web_search` /
+    `web_fetch` tools (real page fetches, not just search snippets); every
+    URL touched is persisted to `sources`. No extra API key needed beyond
+    `ANTHROPIC_API_KEY`.
+  - **Creation Agent** (`create_document` tool) — drafts a document, runs a
+    self-verification pass (heuristics + an LLM checklist review) before
+    saving, and only persists to `documents` once it passes.
+- The hero screen's input starts a conversation that runs through the Agent
+  Loop and persists every turn to Postgres (`src/lib/agents/main-agent.ts`,
+  `src/app/api/chat/route.ts`). Tool-using turns can't token-stream (the
+  model may pause mid-answer to call a tool), so the client-visible
+  typewriter effect replays the completed answer in chunks — see the note
+  in `route.ts`.
 
-Not yet built: Planning/Research/Creation/Schedule/Social/Browser agents,
-tool integrations (Notion/Gmail/Calendar/Drive/Instagram/GitHub), the
-Approval Queue UI, background scheduler/worker, and voice — these follow in
-Phases 3–8.
+Not yet built: Schedule/Social/Browser agents, tool integrations
+(Notion/Gmail/Calendar/Drive/Instagram/GitHub), the Approval Queue UI
+(all current tools are Level 1/auto, so nothing needs it yet), background
+scheduler/worker, and voice — these follow in Phases 4–8.
 
 ## Setup
 

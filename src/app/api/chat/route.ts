@@ -6,6 +6,10 @@ import { conversations, messages } from "@/lib/db/schema";
 import { runMainAgentTurn } from "@/lib/agents/main-agent";
 import type { LLMMessage } from "@/lib/llm/types";
 
+// Chunk size/delay for the fake-typewriter effect below.
+const CHUNK_CHARS = 6;
+const CHUNK_DELAY_MS = 12;
+
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return new Response("unauthorized", { status: 401 });
@@ -36,24 +40,23 @@ export async function POST(req: NextRequest) {
   }));
 
   const encoder = new TextEncoder();
-  let fullText = "";
 
   const stream = new ReadableStream({
     async start(controller) {
+      let fullText = "";
       try {
-        for await (const chunk of runMainAgentTurn(llmHistory)) {
-          if (chunk.type === "text") {
-            fullText += chunk.text;
-            controller.enqueue(encoder.encode(chunk.text));
-          }
+        // The Agent Loop may call tools across several model turns, so it
+        // resolves to a complete answer rather than a token stream (see
+        // AnthropicProvider.stream()'s tool limitation). We replay it to the
+        // client in small chunks to keep the existing typewriter UX.
+        fullText = await runMainAgentTurn(user.id, conversationId, llmHistory);
+        for (let i = 0; i < fullText.length; i += CHUNK_CHARS) {
+          controller.enqueue(encoder.encode(fullText.slice(i, i + CHUNK_CHARS)));
+          if (CHUNK_DELAY_MS) await new Promise((r) => setTimeout(r, CHUNK_DELAY_MS));
         }
       } finally {
         if (fullText) {
-          await db.insert(messages).values({
-            conversationId,
-            role: "assistant",
-            content: fullText,
-          });
+          await db.insert(messages).values({ conversationId, role: "assistant", content: fullText });
         }
         controller.close();
       }

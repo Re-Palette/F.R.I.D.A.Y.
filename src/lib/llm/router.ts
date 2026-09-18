@@ -25,7 +25,7 @@ const TASK_TIER: Record<TaskKind, ModelTier> = {
 };
 
 const TIER_MODEL: Record<ModelTier, string> = {
-  low: process.env.MODEL_LOW ?? "claude-haiku-4-5-20251001",
+  low: process.env.MODEL_LOW ?? "claude-haiku-4-5",
   standard: process.env.MODEL_STANDARD ?? "claude-sonnet-5",
   high: process.env.MODEL_HIGH ?? "claude-opus-5",
 };
