@@ -64,11 +64,15 @@ What exists today:
     (`src/lib/integrations/notion.ts`) — falls back to local-only with a
     note in the result if Notion isn't configured. First real external
     tool integration (Phase 4).
-  - **Deterministic intent hook** (`src/lib/agents/intent.ts`) — checked
-    before any LLM call at all, for messages a direct API can answer
-    without a model (e.g. a future "明日の予定ある？" → Google Calendar).
-    No detectors are registered yet since no external services with a
-    direct query API are connected; this is where Calendar/Gmail plug in.
+  - **Google Calendar** (read-only) — the Master Brief §3 flagship example
+    is real now: "明日の予定ある？"/"今日の予定ある？" is caught by a
+    **deterministic intent detector** (`src/lib/agents/intent.ts`) and
+    never reaches the model at all — it goes straight to the Calendar API
+    and formats the real result. Any other date/range goes through the
+    `get_calendar_events` tool instead (still real data, just via the
+    Agent Loop). No in-app login: since FRIDAY has none, a refresh token is
+    minted once via `pnpm calendar:get-token`
+    (`src/lib/integrations/google-calendar.ts`) and stored as an env var.
 - **Cost monitoring**: every LLM call in a run — the orchestrator's own
   turns *and* nested calls inside tools — is recorded to a shared
   `CostTracker` (`src/lib/agents/cost-tracker.ts`) and persisted onto that
@@ -83,12 +87,12 @@ What exists today:
   typewriter effect replays the completed answer in chunks — see the note
   in `route.ts`.
 
-Not yet built: Schedule/Social/Browser agents, real tool integrations
-(Notion/Gmail/Calendar/Drive/Instagram/GitHub — and the deterministic
-intent detectors that ride on them), the Approval Queue UI (all current
-tools are Level 1/auto, so nothing needs it yet), semantic memory/research
-caching (the Memory tables exist but retrieval isn't wired up), background
-scheduler/worker, and voice — these follow in Phases 4–8.
+Not yet built: Schedule/Social/Browser agents, remaining tool integrations
+(Gmail/Drive/Instagram/GitHub — Gmail in particular needs the Approval
+Queue below it first, since sending mail is Level 2), the Approval Queue
+UI (all current tools are Level 1/auto, so nothing needs it yet), semantic
+memory/research caching (the Memory tables exist but retrieval isn't wired
+up), background scheduler/worker, and voice — these follow in Phases 4–8.
 
 ## Setup
 
@@ -105,6 +109,10 @@ scheduler/worker, and voice — these follow in Phases 4–8.
      `.env.example` for how to create the integration and get the page ID.
      Without these, `create_document`'s Notion destination just falls back
      to saving locally.
+   - `GOOGLE_CALENDAR_CLIENT_ID`/`GOOGLE_CALENDAR_CLIENT_SECRET`/
+     `GOOGLE_CALENDAR_REFRESH_TOKEN` — optional; see `.env.example` for the
+     one-time setup (`pnpm calendar:get-token`). Without these, calendar
+     questions just get told it's not connected.
 3. Enable pgvector and create the tables:
    ```bash
    pnpm db:enable-extensions
@@ -140,3 +148,5 @@ useful without `DATABASE_URL`/`ANTHROPIC_API_KEY` set.
 - `pnpm db:generate` — generate SQL migrations from the Drizzle schema
 - `pnpm db:migrate` — apply migrations to `DATABASE_URL`
 - `pnpm db:studio` — browse the database
+- `pnpm calendar:get-token` — one-time local OAuth flow to print a Google
+  Calendar refresh token (see `.env.example`)

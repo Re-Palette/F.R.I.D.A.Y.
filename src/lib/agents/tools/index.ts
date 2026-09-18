@@ -1,9 +1,10 @@
 import type { LLMToolDef } from "@/lib/llm/types";
 import { createPlanTool } from "./create-plan";
 import { createDocumentTool } from "./create-document";
+import { getCalendarEventsTool } from "./get-calendar-events";
 import type { ToolDefinition } from "./types";
 
-export const TOOLS: ToolDefinition[] = [createPlanTool, createDocumentTool];
+export const TOOLS: ToolDefinition[] = [createPlanTool, createDocumentTool, getCalendarEventsTool];
 
 export function getTool(name: string): ToolDefinition | undefined {
   return TOOLS.find((t) => t.name === name);

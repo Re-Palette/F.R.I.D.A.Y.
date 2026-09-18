@@ -30,7 +30,13 @@ const SYSTEM_PROMPT = `あなたは F.R.I.D.A.Y. — ユーザー専用の自律
 - 単純な雑談や質問にはツールを使わず、直接会話で答えてください。
 - 返答は簡潔かつ具体的に。前置きや過剰な丁寧語は避けてください。
 - カレンダー・メール送信等の外部サービス連携はまだ実装されていません。
-  それらが必要な依頼が来た場合は、正直に「まだ接続されていない」旨を伝えてください。`;
+  それらが必要な依頼が来た場合は、正直に「まだ接続されていない」旨を伝えてください。
+
+追加の能力:
+- get_calendar_events — Googleカレンダーの予定を読み取る（読み取り専用）。
+  「今日/明日の予定」は自動的にコード側で処理されるためあなたが呼ばれることはないが、
+  それ以外の日付・期間の予定を聞かれたら必ずこのツールで実際のデータを取得し、
+  推測でカレンダーの内容を答えないこと。未接続の場合はその旨を正直に伝える。`;
 
 export async function runMainAgentTurn(
   userId: string,
@@ -39,8 +45,8 @@ export async function runMainAgentTurn(
 ): Promise<string> {
   // Code-first fast path (Master Brief §3): skip the LLM entirely when the
   // message matches a deterministic intent we already have a direct API
-  // for. No detectors are registered yet (see agents/intent.ts) — this is
-  // the hook Phase 4's Calendar/Gmail/Notion integrations plug into.
+  // for (today/tomorrow calendar lookups — see agents/intent.ts). Other
+  // integrations register their own detectors into the same hook.
   const message = lastUserText(history);
   const deterministic = message ? detectDeterministicIntent(message) : null;
   if (deterministic) {
