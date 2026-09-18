@@ -101,6 +101,20 @@ scheduler/worker, and voice — these follow in Phases 4–8.
    ```
 4. `pnpm dev` and open http://localhost:3000.
 
+## Deploying (Vercel)
+
+Set every var from `.env.example` (`DATABASE_URL`, `ANTHROPIC_API_KEY`,
+`AUTH_SECRET`, `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, `ALLOWED_EMAIL`; the
+`ANTHROPIC_*_MODEL`/`FORCE_MODEL_TIER` overrides are optional) in the
+Vercel project's **Settings → Environment Variables**, for whichever
+environment you're deploying (Production/Preview/Development each have
+their own list — a var set only under Production won't exist during a
+Preview build). None of these are required for `next build` to *succeed*
+(see the note in `src/lib/auth/index.ts` and `src/lib/db/client.ts` — both
+are checked lazily at first real use, not at import time), but the deployed
+app won't do anything useful without them: sign-in is denied and any
+database query throws until they're set.
+
 ## Scripts
 
 - `pnpm dev` / `pnpm build` / `pnpm start`
