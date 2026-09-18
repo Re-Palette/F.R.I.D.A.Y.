@@ -61,11 +61,50 @@ export interface CalendarEvent {
   end: string;
   allDay: boolean;
   location?: string;
+  /** Which calendar it came from — set only for calendars other than the primary one. */
+  calendar?: string;
 }
 
-/** timeMin/timeMax are full ISO instants (UTC). */
-export async function listEvents(timeMin: string, timeMax: string): Promise<CalendarEvent[]> {
-  const token = await getAccessToken();
+interface CalendarRef {
+  id: string;
+  summary: string;
+  primary: boolean;
+}
+
+// Google's generated calendars answer "what day is it", not "what am I
+// doing" — listing 敬老の日 under 明日の予定 is noise.
+const GENERATED_CALENDAR = /#(holiday|contacts|weeknum)@group\.v\.calendar\.google\.com$/;
+
+/** Every calendar the user actually sees: shared and subscribed ones included. */
+async function listCalendars(token: string): Promise<CalendarRef[]> {
+  const res = await fetch("https://www.googleapis.com/calendar/v3/users/me/calendarList", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error(`Google Calendar API error: HTTP ${res.status}`);
+
+  const data = (await res.json()) as {
+    items?: Array<{
+      id: string;
+      summary?: string;
+      primary?: boolean;
+      selected?: boolean;
+      deleted?: boolean;
+    }>;
+  };
+
+  return (data.items ?? [])
+    // `selected: false` means the user has unticked it in Google Calendar —
+    // respect that rather than surfacing what they chose to hide.
+    .filter((c) => !c.deleted && c.selected !== false && !GENERATED_CALENDAR.test(c.id))
+    .map((c) => ({ id: c.id, summary: c.summary ?? c.id, primary: Boolean(c.primary) }));
+}
+
+async function listCalendarEvents(
+  token: string,
+  cal: CalendarRef,
+  timeMin: string,
+  timeMax: string
+): Promise<CalendarEvent[]> {
   const params = new URLSearchParams({
     timeMin,
     timeMax,
@@ -74,9 +113,10 @@ export async function listEvents(timeMin: string, timeMax: string): Promise<Cale
     maxResults: "50",
   });
 
-  const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?${params}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  const res = await fetch(
+    `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cal.id)}/events?${params}`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
   if (!res.ok) throw new Error(`Google Calendar API error: HTTP ${res.status}`);
 
   const data = (await res.json()) as {
@@ -94,7 +134,35 @@ export async function listEvents(timeMin: string, timeMax: string): Promise<Cale
     end: item.end?.dateTime ?? item.end?.date ?? "",
     allDay: !item.start?.dateTime,
     location: item.location,
+    calendar: cal.primary ? undefined : cal.summary,
   }));
+}
+
+/** Instant an event begins, so all-day entries sort to the head of their day. */
+function startsAt(e: CalendarEvent): number {
+  if (!e.allDay) return new Date(e.start).getTime();
+  return new Date(`${e.start}T00:00:00.000Z`).getTime() - offsetMinutes() * 60_000;
+}
+
+/** timeMin/timeMax are full ISO instants (UTC). Covers every visible calendar. */
+export async function listEvents(timeMin: string, timeMax: string): Promise<CalendarEvent[]> {
+  const token = await getAccessToken();
+  const calendars = await listCalendars(token);
+
+  const perCalendar = await Promise.all(
+    calendars.map(async (cal) => {
+      try {
+        return await listCalendarEvents(token, cal, timeMin, timeMax);
+      } catch (err) {
+        // One calendar the token can list but not read shouldn't blank out
+        // the rest of the day's answer.
+        console.error(`Failed to read calendar ${cal.id}:`, err);
+        return [] as CalendarEvent[];
+      }
+    })
+  );
+
+  return perCalendar.flat().sort((a, b) => startsAt(a) - startsAt(b));
 }
 
 function offsetMinutes(): number {
@@ -133,12 +201,13 @@ export function localDateString(offsetDays = 0): string {
 }
 
 export function formatEventLine(e: CalendarEvent): string {
-  if (e.allDay) return `- ${e.title}（終日）${e.location ? ` @ ${e.location}` : ""}`;
+  const source = e.calendar ? `［${e.calendar}］` : "";
+  if (e.allDay) return `- ${e.title}（終日）${e.location ? ` @ ${e.location}` : ""}${source}`;
   // Shift the instant by the configured offset so the UTC getters read local
   // wall-clock time, as localDateString does. Reading them off the raw
   // instant printed every event in UTC — a 14:00 meeting in Tokyo showed as
   // 05:00.
   const local = new Date(new Date(e.start).getTime() + offsetMinutes() * 60_000);
   const time = `${String(local.getUTCHours()).padStart(2, "0")}:${String(local.getUTCMinutes()).padStart(2, "0")}`;
-  return `- ${time} ${e.title}${e.location ? ` @ ${e.location}` : ""}`;
+  return `- ${time} ${e.title}${e.location ? ` @ ${e.location}` : ""}${source}`;
 }
