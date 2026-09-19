@@ -221,6 +221,13 @@ media, which is a lot of setup for little a personal agent can use.
      — see `src/lib/speech-text.ts`, checked by `pnpm test:speech` — so this
      is only for proper nouns.
 
+   To check Notion is actually connected, open `/api/diagnostics/notion` on
+   the deployment. It reports each step separately — variables set, token
+   valid, parent page reachable — because they fail in ways that look
+   identical from the outside. Add `?write=1` to go as far as creating a
+   page and trashing it, which is the only step that proves the integration
+   may write rather than only read.
+
    Nothing said is lost. Every message is stored as it happens, and once a
    night the day just ended is read back: written up as a report (to Notion
    if `NOTION_API_KEY`/`NOTION_PARENT_PAGE_ID` are set, otherwise kept in
