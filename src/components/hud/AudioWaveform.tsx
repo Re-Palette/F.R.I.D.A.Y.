@@ -1,7 +1,8 @@
 "use client";
 
-import type { CSSProperties } from "react";
+import { useEffect, useRef, type CSSProperties } from "react";
 import { cn } from "@/lib/cn";
+import { subscribeToInputLevel } from "@/lib/voice-activity";
 
 // Fixed heights and rates: a waveform seeded at random redraws differently
 // on the server and the client, which is a hydration mismatch as well as a
@@ -15,13 +16,36 @@ const BARS = [
 /**
  * The signal trace in the bottom-right corner.
  *
- * It moves when the conversation does: still while nothing is happening,
- * running while F.R.I.D.A.Y. is listening or speaking. A waveform that
- * animates through silence is claiming to hear something.
+ * Its height is the microphone, for real — while the interruption watch is
+ * running, this is what that watch is hearing. So it is a meter as well as
+ * a decoration: if it does not move when you speak over a reply, the reason
+ * the reply did not stop is that nothing reached the microphone, which is
+ * worth being able to see rather than guess at.
+ *
+ * The level is written straight to a custom property rather than held in
+ * state. It changes sixty times a second, and re-rendering the screen for
+ * each frame of a waveform would cost more than the waveform is worth.
  */
 export function AudioWaveform({ active, className }: { active?: boolean; className?: string }) {
+  const trace = useRef<HTMLDivElement>(null);
+
+  useEffect(
+    () =>
+      subscribeToInputLevel((level) => {
+        // RMS sits well under 1 even when someone is talking straight at it,
+        // so it is scaled to fill the trace rather than shown raw.
+        trace.current?.style.setProperty("--hud-level", String(Math.min(1, level * 6).toFixed(3)));
+      }),
+    []
+  );
+
   return (
-    <div className={cn("flex h-10 items-center gap-[3px]", className)} aria-hidden>
+    <div
+      ref={trace}
+      className={cn("flex h-10 origin-center items-center gap-[3px] transition-transform duration-100", className)}
+      style={{ transform: "scaleY(calc(0.2 + 0.8 * var(--hud-level, 0.3)))" }}
+      aria-hidden
+    >
       {BARS.map((height, i) => (
         <span
           key={i}
