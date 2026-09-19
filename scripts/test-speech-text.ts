@@ -6,7 +6,7 @@
  * re-checked by listening to the app.
  */
 import assert from "node:assert/strict";
-import { parseReadings, toSpeakable } from "../src/lib/speech-text";
+import { parseReadings, takeSentences, toSpeakable } from "../src/lib/speech-text";
 
 const cases: Array<[string, string, string]> = [
   [
@@ -60,5 +60,48 @@ assert.deepEqual(parseReadings(undefined), []);
 assert.deepEqual(parseReadings("nonsense,=x,y="), []);
 console.log("  ok  readings: parsing");
 
-console.log(failures ? `\n${failures} failed` : `\nall ${cases.length + 2} passed`);
+// --- takeSentences: what can be spoken while the rest is still arriving ---
+
+function sentences(name: string, input: string, flush: boolean, expected: string[], rest: string) {
+  const actual = takeSentences(input, { flush });
+  const ok =
+    JSON.stringify(actual.sentences) === JSON.stringify(expected) && actual.rest === rest;
+  if (ok) {
+    console.log(`  ok  ${name}`);
+  } else {
+    failures++;
+    console.log(`FAIL  ${name}`);
+    console.log(`      expected: ${JSON.stringify({ sentences: expected, rest })}`);
+    console.log(`      actual:   ${JSON.stringify(actual)}`);
+  }
+}
+
+sentences("nothing complete yet", "明日は3件あ", false, [], "明日は3件あ");
+sentences(
+  "one finished, one still coming",
+  "明日は3件あります。10時から企画",
+  false,
+  ["明日は3件あります。"],
+  "10時から企画"
+);
+sentences("a question counts as an end", "どうしますか？ええと", false, ["どうしますか？"], "ええと");
+sentences(
+  "a closing bracket belongs to its sentence",
+  "「了解しました。」次に",
+  false,
+  ["「了解しました。」"],
+  "次に"
+);
+sentences(
+  "a long sentence breaks at a clause rather than waiting",
+  "本日は朝から会議が立て込んでおり、午後には外出の予定も入っていますので、移動の時間を",
+  false,
+  ["本日は朝から会議が立て込んでおり、午後には外出の予定も入っていますので、"],
+  "移動の時間を"
+);
+sentences("a short unfinished clause waits", "はい、そうです", false, [], "はい、そうです");
+sentences("flush takes what is left", "最後まで言い切らず", true, ["最後まで言い切らず"], "");
+sentences("flush on an empty buffer says nothing", "   ", true, [], "");
+
+console.log(failures ? `\n${failures} failed` : `\nall passed`);
 process.exit(failures ? 1 : 0);

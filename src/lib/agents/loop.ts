@@ -30,6 +30,12 @@ export interface AgentLoopParams {
   /** Full conversation history; the last entry is the newest user turn. */
   messages: LLMMessage[];
   limits?: Partial<AgentLoopLimits>;
+  /**
+   * Text the model writes, handed over as it is written. The loop's own
+   * result is unchanged — this only lets the answer start reaching the user
+   * before the turn is over.
+   */
+  onText?: (text: string) => void;
 }
 
 export interface RecordedStep {
@@ -122,13 +128,20 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<AgentLoopRe
   const deadline = Date.now() + limits.timeoutMs;
   const costTracker = new CostTracker();
 
-  const [run] = await db.insert(agentRuns).values({ agentRole: "main", status: "running", steps: [] }).returning();
+  // Started, not waited for: the user is otherwise sitting through a round
+  // trip to Neon before the model is even asked, and nothing until finish()
+  // needs the row's id.
+  const runRow = db
+    .insert(agentRuns)
+    .values({ agentRole: "main", status: "running", steps: [] })
+    .returning();
 
   const messages: LLMMessage[] = [...params.messages];
   const steps: RecordedStep[] = [];
   let finalText = "";
 
   const finish = async (status: "succeeded" | "failed" | "timed_out") => {
+    const [run] = await runRow;
     const totals = costTracker.totals;
     await db
       .update(agentRuns)
@@ -155,6 +168,7 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<AgentLoopRe
         tools: toLLMToolDefs(),
         enableWebSearch: true,
         maxTokens: 4096,
+        onText: params.onText,
       });
 
       costTracker.record(model, result.usage);

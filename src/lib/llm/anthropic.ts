@@ -19,18 +19,33 @@ export class AnthropicProvider implements LLMProvider {
   }
 
   async complete(params: CompleteParams): Promise<CompleteResult> {
-    const { model, system, messages, tools, enableWebSearch, maxTokens = 4096, temperature } = params;
+    const {
+      model,
+      system,
+      messages,
+      tools,
+      enableWebSearch,
+      maxTokens = 4096,
+      temperature,
+      onText,
+    } = params;
 
     const anthropicTools = buildAnthropicTools(tools, enableWebSearch, model);
 
-    const response = await this.client.messages.create({
+    const body = {
       model,
       system,
       max_tokens: maxTokens,
       temperature,
       messages: messages.map(toAnthropicMessage),
       tools: anthropicTools.length ? anthropicTools : undefined,
-    });
+    };
+
+    // Same request either way, and finalMessage() assembles the same Message
+    // that create() returns — so everything below this point, tool blocks
+    // included, is unchanged. The only difference is that the text is handed
+    // over as it is written rather than all at the end.
+    const response = await (onText ? this.streamed(body, onText) : this.client.messages.create(body));
 
     return {
       content: response.content.map(fromAnthropicBlock),
@@ -40,6 +55,19 @@ export class AnthropicProvider implements LLMProvider {
         outputTokens: response.usage.output_tokens,
       },
     };
+  }
+
+  private async streamed(
+    body: Anthropic.Messages.MessageCreateParamsNonStreaming,
+    onText: (text: string) => void
+  ): Promise<Anthropic.Message> {
+    const stream = this.client.messages.stream(body);
+    for await (const event of stream) {
+      if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
+        onText(event.delta.text);
+      }
+    }
+    return stream.finalMessage();
   }
 
   async *stream(params: CompleteParams): AsyncGenerator<StreamChunk> {

@@ -45,6 +45,16 @@ export interface CompleteParams {
   enableWebSearch?: boolean;
   maxTokens?: number;
   temperature?: number;
+  /**
+   * Called with each piece of text as the model writes it.
+   *
+   * Passing it changes how the call is made, not what it returns: the result
+   * is the same complete message either way, tool blocks and all. It exists
+   * so the text can start reaching the user — and start being read aloud —
+   * while the rest is still being generated, instead of the whole wait being
+   * spent in silence.
+   */
+  onText?: (text: string) => void;
 }
 
 export interface CompleteResult {

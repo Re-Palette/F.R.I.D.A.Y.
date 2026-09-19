@@ -227,151 +227,205 @@ function releaseAudio() {
 }
 
 /**
- * Speaks in the ElevenLabs voice, if one is configured.
- *
- * Returns false when the browser should do it instead — no voice set up, the
- * quota gone, the network out, or the browser refusing to play audio it
- * wasn't asked for. Returns true once it owns the utterance, including when
- * the utterance was superseded while the audio was being fetched: in that
- * case nothing should be spoken and nothing should fall back.
+ * Audio for one piece of text. Null means the browser should say this one —
+ * no voice configured, the quota gone, or the request failed.
  */
-interface SpeakCallbacks {
-  /** Fires when sound actually starts coming out, not when it was asked for. */
+async function fetchVoice(text: string): Promise<Blob | null> {
+  if (!voiceConfigured) return null;
+  try {
+    const res = await fetch("/api/speech", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+    });
+    if (!res.ok) {
+      // 503 is the route saying no voice is set up, which will be just as
+      // true next time: remembering it keeps every later reply from paying
+      // for a round trip to find that out again. Other failures may well be
+      // transient, so those are retried.
+      if (res.status === 503) voiceConfigured = false;
+      return null;
+    }
+    return await res.blob();
+  } catch (err) {
+    console.error("Voice request failed:", err);
+    return null;
+  }
+}
+
+/** Resolves false when the browser refused to play it, so it can be spoken
+ *  the other way rather than silently skipped. */
+function playVoice(blob: Blob, mine: number, onSound: () => void): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (mine !== generation) return resolve(true);
+
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    playing = audio;
+    playingUrl = url;
+
+    let settled = false;
+    const done = (played: boolean) => {
+      if (settled) return;
+      settled = true;
+      if (mine === generation) releaseAudio();
+      resolve(played);
+    };
+
+    audio.onplaying = onSound;
+    audio.onended = () => done(true);
+    // A chunk that fails halfway has already been partly heard; saying it
+    // again through the other path would be worse than losing the rest.
+    audio.onerror = () => done(true);
+    audio.play().catch((err) => {
+      // Autoplay refused. The browser's own synthesis is held to a different
+      // policy, so it is worth trying rather than going silent.
+      console.error("Voice playback refused:", err);
+      done(false);
+    });
+  });
+}
+
+function speakWithBrowser(text: string, lang: string, mine: number, onSound: () => void): Promise<void> {
+  return new Promise((resolve) => {
+    if (!speechOutputSupported() || mine !== generation) return resolve();
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = lang;
+
+    // A machine with no installed voices accepts the utterance and then never
+    // says anything or reports anything, which in a conversation that listens
+    // again when speech ends means it simply stops. The watchdog is what keeps
+    // that from being a dead end; it is generous enough never to cut real
+    // speech short.
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(watchdog);
+      resolve();
+    };
+    const watchdog = setTimeout(finish, 5000 + text.length * 90);
+
+    utterance.onstart = onSound;
+    utterance.onend = finish;
+    // A failed utterance must still release whoever is waiting on it.
+    utterance.onerror = finish;
+
+    // Voices load asynchronously on some platforms, so an empty list here
+    // means "not ready yet" rather than "none available" — the default voice
+    // still speaks.
+    const voice = window.speechSynthesis.getVoices().find((v) => v.lang.startsWith(lang.slice(0, 2)));
+    if (voice) utterance.voice = voice;
+
+    window.speechSynthesis.speak(utterance);
+  });
+}
+
+export interface SpeechSession {
+  /** Say this next, after whatever is already queued. */
+  push: (text: string) => void;
+  /** Nothing more is coming; onEnd fires once the queue drains. */
+  end: () => void;
+}
+
+export interface SpeakOptions {
+  lang?: string;
+  /** Fires when sound actually starts, not when it was asked for. */
   onStart?: () => void;
   onEnd?: () => void;
 }
 
-async function speakWithVoice(text: string, mine: number, { onStart, onEnd }: SpeakCallbacks): Promise<boolean> {
-  if (!voiceConfigured) return false;
-
-  const res = await fetch("/api/speech", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text }),
-  });
-  if (!res.ok) {
-    // 503 is the route saying no voice is set up, which will be just as true
-    // next time: remembering it keeps every later reply from paying for a
-    // round trip to find that out again. Other failures may well be
-    // transient, so those are retried.
-    if (res.status === 503) voiceConfigured = false;
-    return false;
-  }
-
-  const blob = await res.blob();
-  if (mine !== generation) return true;
-
-  const url = URL.createObjectURL(blob);
-  const audio = new Audio(url);
-  playing = audio;
-  playingUrl = url;
-
-  const done = () => {
-    if (mine !== generation) return;
-    releaseAudio();
-    onEnd?.();
-  };
-  audio.onended = done;
-  audio.onerror = done;
-  audio.onplaying = () => {
-    if (mine === generation) onStart?.();
-  };
-
-  try {
-    await audio.play();
-  } catch (err) {
-    // Autoplay refused. The browser's own synthesis is held to a different
-    // policy, so it is worth trying rather than going silent.
-    console.error("Voice playback refused:", err);
-    if (mine === generation) releaseAudio();
-    return false;
-  }
-
-  return true;
-}
-
-function speakWithBrowser(text: string, mine: number, lang: string, { onStart, onEnd }: SpeakCallbacks) {
-  if (!speechOutputSupported()) {
-    onEnd?.();
-    return;
-  }
-
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = lang;
-
-  // A machine with no installed voices accepts the utterance and then never
-  // says anything or reports anything, which in a conversation that listens
-  // again when speech ends means it simply stops. The watchdog is what keeps
-  // that from being a dead end; it is generous enough never to cut real
-  // speech short.
-  let settled = false;
-  const finish = () => {
-    if (settled || mine !== generation) return;
-    settled = true;
-    clearTimeout(watchdog);
-    onEnd?.();
-  };
-  const watchdog = setTimeout(finish, 5000 + text.length * 90);
-
-  utterance.onstart = () => {
-    if (mine === generation) onStart?.();
-  };
-  utterance.onend = finish;
-  // A failed utterance must still release whoever is waiting on it.
-  utterance.onerror = finish;
-
-  // Voices load asynchronously on some platforms, so an empty list here
-  // means "not ready yet" rather than "none available" — the default voice
-  // still speaks.
-  const voice = window.speechSynthesis.getVoices().find((v) => v.lang.startsWith(lang.slice(0, 2)));
-  if (voice) utterance.voice = voice;
-
-  window.speechSynthesis.speak(utterance);
-}
-
 /**
- * Reads `text` aloud, replacing anything already being spoken.
+ * Speaks a reply that is still being written.
  *
- * The text is rewritten for the ear first (speech-text.ts): dates, times and
- * numbers into the words a person would say, markup and links out. Prefers the ElevenLabs voice and falls back to the browser's own synthesis,
- * so the app still talks when no voice is configured, the quota runs out, or
- * the request fails. Nothing here knows which it will be — that is settled by
- * /api/speech, where the key lives.
+ * Waiting for a whole answer before saying any of it means waiting for the
+ * model to finish, then for the voice to render all of it, and only then
+ * hearing the first word. Pushed a sentence at a time, each one is sent for
+ * synthesis the moment it exists — so later sentences are being rendered
+ * while the first is already playing, and the wait is one sentence long
+ * instead of the whole reply.
  *
- * `onStart` fires when sound actually begins — which is later than this call
- * by however long the voice took to arrive, and is the moment from which
- * listening for an interruption makes any sense.
- *
- * `onEnd` is what makes a back-and-forth possible: it fires when the reply
- * has finished being spoken, which is the moment to listen again. It fires
- * whichever path spoke, and also when speech is unavailable altogether or the
- * text is empty, so a caller waiting on it is never left waiting forever.
+ * Order is preserved regardless: they are awaited in the order they were
+ * pushed, however the requests come back.
  */
-export function speak(
-  text: string,
-  options: { lang?: string; onStart?: () => void; onEnd?: () => void } = {}
-) {
+export function startSpeaking(options: SpeakOptions = {}): SpeechSession {
   const { lang = "ja-JP", onStart, onEnd } = options;
-  // What is spoken is not what is shown: a reply written for the eye reads
-  // terribly out loud. See speech-text.ts — the subtitle keeps the original.
-  const trimmed = toSpeakable(text, configuredReadings());
 
   stopSpeaking();
   const mine = generation;
 
-  if (!trimmed) {
-    onEnd?.();
-    return;
-  }
+  const queue: Array<{ text: string; audio: Promise<Blob | null> }> = [];
+  let next = 0;
+  let ended = false;
+  let draining = false;
+  let sounded = false;
+  let finished = false;
 
-  void (async () => {
-    try {
-      if (await speakWithVoice(trimmed, mine, { onStart, onEnd })) return;
-    } catch (err) {
-      console.error("Voice request failed:", err);
+  const onSound = () => {
+    if (sounded) return;
+    sounded = true;
+    onStart?.();
+  };
+
+  const finish = () => {
+    if (finished || mine !== generation) return;
+    finished = true;
+    onEnd?.();
+  };
+
+  const drain = async () => {
+    if (draining) return;
+    draining = true;
+
+    while (next < queue.length) {
+      if (mine !== generation) {
+        draining = false;
+        return;
+      }
+      const item = queue[next++];
+      const blob = await item.audio;
+      if (mine !== generation) {
+        draining = false;
+        return;
+      }
+      if (blob ? !(await playVoice(blob, mine, onSound)) : true) {
+        await speakWithBrowser(item.text, lang, mine, onSound);
+      }
     }
-    if (mine === generation) speakWithBrowser(trimmed, mine, lang, { onStart, onEnd });
-  })();
+
+    draining = false;
+    if (ended) finish();
+  };
+
+  return {
+    push(raw: string) {
+      if (mine !== generation) return;
+      // What is spoken is not what is shown: a reply written for the eye
+      // reads terribly out loud. See speech-text.ts.
+      const text = toSpeakable(raw, configuredReadings());
+      if (!text) return;
+      // The request goes out now, not when its turn comes.
+      queue.push({ text, audio: fetchVoice(text) });
+      void drain();
+    },
+    end() {
+      ended = true;
+      if (!draining) finish();
+    },
+  };
+}
+
+/**
+ * Reads `text` aloud in one go, replacing anything already being spoken.
+ *
+ * The whole-answer-at-once form of startSpeaking, for callers that have the
+ * whole answer.
+ */
+export function speak(text: string, options: SpeakOptions = {}) {
+  const session = startSpeaking(options);
+  session.push(text);
+  session.end();
 }
 
 export function stopSpeaking() {

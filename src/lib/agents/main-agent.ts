@@ -66,7 +66,10 @@ const SYSTEM_PROMPT = `あなたは F.R.I.D.A.Y. — ユーザー専用の自律
 export async function runMainAgentTurn(
   userId: string,
   conversationId: string,
-  history: LLMMessage[]
+  history: LLMMessage[],
+  /** Text as the model writes it — see AgentLoopParams.onText. Deterministic
+   *  fast paths below never call it, since they have the whole answer. */
+  onText?: (text: string) => void
 ): Promise<string> {
   // Code-first fast path (Master Brief §3): skip the LLM entirely when the
   // message matches a deterministic intent we already have a direct API
@@ -89,6 +92,7 @@ export async function runMainAgentTurn(
     conversationId,
     system: SYSTEM_PROMPT + formatMemoriesForPrompt(remembered),
     messages: history,
+    onText,
   });
   return finalText;
 }

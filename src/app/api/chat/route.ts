@@ -45,8 +45,6 @@ async function handleChat(req: NextRequest) {
     .limit(1);
   if (!conversation) return new Response("not found", { status: 404 });
 
-  await db.insert(messages).values({ conversationId, role: "user", content });
-
   // The opening message is what the conversation is about, so it names it —
   // derived here rather than asked of a model, which would be a whole extra
   // call to label something the user already wrote.
@@ -54,26 +52,38 @@ async function handleChat(req: NextRequest) {
     ? undefined
     : content.trim().replace(/\s+/g, " ").slice(0, 60) || undefined;
 
-  // Both of these are round trips to Neon, and the user is waiting through
-  // every one of them before the model is even asked. Touching the
-  // conversation doesn't affect which messages come back, so it need not be
-  // waited for first — and the title and timestamp are one write, not two.
-  const [history] = await Promise.all([
+  // Every one of these is a round trip to Neon that the user sits through
+  // before the model is even asked, so they go together. Storing the new
+  // message used to be waited for first, only so the history query could
+  // read it back — but its text is already here. It is filtered out of the
+  // history by the id the insert returns and appended locally, which is
+  // correct however the two queries interleave.
+  const [rows, inserted] = await Promise.all([
     db
       .select()
       .from(messages)
       .where(eq(messages.conversationId, conversationId))
       .orderBy(asc(messages.createdAt)),
     db
+      .insert(messages)
+      .values({ conversationId, role: "user", content })
+      .returning({ id: messages.id }),
+    db
       .update(conversations)
       .set({ updatedAt: new Date(), ...(title ? { title } : {}) })
       .where(eq(conversations.id, conversationId)),
   ]);
 
-  const llmHistory: LLMMessage[] = history.map((m) => ({
-    role: m.role === "tool" ? "assistant" : m.role,
-    content: m.content,
-  }));
+  const justInserted = new Set(inserted.map((row) => row.id));
+  const llmHistory: LLMMessage[] = [
+    ...rows
+      .filter((m) => !justInserted.has(m.id))
+      .map((m) => ({
+        role: (m.role === "tool" ? "assistant" : m.role) as LLMMessage["role"],
+        content: m.content,
+      })),
+    { role: "user", content },
+  ];
 
   const encoder = new TextEncoder();
 
@@ -81,11 +91,27 @@ async function handleChat(req: NextRequest) {
     async start(controller) {
       let fullText = "";
       try {
-        // The Agent Loop may call tools across several model turns, so it
-        // resolves to a complete answer rather than a token stream. Sent the
-        // moment it exists.
-        fullText = await runMainAgentTurn(user.id, conversationId, llmHistory);
-        controller.enqueue(encoder.encode(fullText));
+        // Sent as the model writes it. The client reads it a sentence at a
+        // time and starts reading each one aloud while the rest is still
+        // being generated, so the wait before any sound is one sentence
+        // rather than the whole answer.
+        let streamed = "";
+        const onText = (text: string) => {
+          streamed += text;
+          controller.enqueue(encoder.encode(text));
+        };
+
+        const result = await runMainAgentTurn(user.id, conversationId, llmHistory, onText);
+
+        // Deterministic fast paths answer without a model and never stream,
+        // and the loop substitutes its own text for a refusal or a limit —
+        // so whatever hasn't already gone out still has to.
+        const remainder = result && !streamed.endsWith(result) ? result : "";
+        if (remainder) controller.enqueue(encoder.encode(remainder));
+
+        // What gets stored is what was actually sent, so reopening the
+        // conversation shows the same words that were spoken.
+        fullText = streamed + remainder;
       } catch (err) {
         // Without this, a thrown error here just closes the stream with
         // nothing ever enqueued — the client reads a clean "done" with an

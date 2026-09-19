@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { speak, stopSpeaking, useSpeechInput } from "@/lib/speech";
+import { startSpeaking, stopSpeaking, useSpeechInput } from "@/lib/speech";
+import { takeSentences } from "@/lib/speech-text";
 import { releaseMicrophone, watchForInterruption, type ActivityMonitor } from "@/lib/voice-activity";
 import { startWakeListening, useWakeWord } from "@/lib/wake-word";
 
@@ -115,7 +116,7 @@ export function useVoiceConversation(): VoiceConversation {
           body: JSON.stringify({ conversationId: id, content: text }),
         });
         if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`);
-        const answer = await res.text();
+        if (!res.body) throw new Error("no stream");
 
         // Stopped while this was in flight: the turn is still saved, but
         // speaking it now would be answering a question already abandoned.
@@ -124,9 +125,7 @@ export function useVoiceConversation(): VoiceConversation {
           return;
         }
 
-        setReply(answer);
-        setPhase("speaking");
-        speak(answer, {
+        const session = startSpeaking({
           onStart: armInterruption,
           onEnd: () => {
             if (!conversing.current) return setPhase("idle");
@@ -134,6 +133,46 @@ export function useVoiceConversation(): VoiceConversation {
             startListening.current();
           },
         });
+
+        // Spoken a sentence at a time as the answer is written, rather than
+        // waiting for the last word of it: the first sentence is being read
+        // out while the rest is still being generated, which is most of the
+        // wait that used to sit between a question and any sound at all.
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let pending = "";
+        let answer = "";
+        let speaking = false;
+
+        const say = (sentence: string) => {
+          session.push(sentence);
+          if (speaking) return;
+          speaking = true;
+          setPhase("speaking");
+        };
+
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (!conversing.current) {
+            await reader.cancel();
+            return;
+          }
+
+          const chunk = decoder.decode(value, { stream: true });
+          answer += chunk;
+          pending += chunk;
+          // The subtitle runs ahead of the voice, which is what watching
+          // someone answer looks like.
+          setReply(answer);
+
+          const { sentences, rest } = takeSentences(pending);
+          pending = rest;
+          sentences.forEach(say);
+        }
+
+        takeSentences(pending, { flush: true }).sentences.forEach(say);
+        session.end();
       } catch (err) {
         console.error("Voice turn failed:", err);
         conversing.current = false;

@@ -171,3 +171,66 @@ export function toSpeakable(
 export function configuredReadings(): ReadingRule[] {
   return [...BUILT_IN_READINGS, ...parseReadings(process.env.NEXT_PUBLIC_SPEECH_READINGS)];
 }
+
+/**
+ * Pulling finished sentences out of a reply that is still arriving.
+ *
+ * Waiting for the whole answer before saying any of it means the wait is the
+ * longest sentence plus every sentence after it. A reply arrives in pieces,
+ * and a sentence is the smallest piece worth speaking — so this takes what
+ * is complete and leaves the rest in the buffer for next time.
+ *
+ * `flush` is for when the text has stopped coming: whatever is left is a
+ * sentence whether or not it was punctuated.
+ */
+const SENTENCE_END = /[。．！？!?\n]/;
+/** Past this many characters with no end in sight, a clause boundary is
+ *  worth speaking on: otherwise one long unpunctuated stretch puts the whole
+ *  reply back to waiting for all of it. */
+const CLAUSE_END = /[、，,]/;
+const LONG_SENTENCE = 40;
+
+export function takeSentences(
+  buffer: string,
+  { flush = false }: { flush?: boolean } = {}
+): { sentences: string[]; rest: string } {
+  const sentences: string[] = [];
+  let rest = buffer;
+
+  for (;;) {
+    const end = SENTENCE_END.exec(rest);
+    if (!end) break;
+    // Closing punctuation belongs to the sentence it closes.
+    let cut = end.index + 1;
+    while (cut < rest.length && /["'」』）)】]/.test(rest[cut])) cut++;
+    const sentence = rest.slice(0, cut).trim();
+    if (sentence) sentences.push(sentence);
+    rest = rest.slice(cut);
+  }
+
+  if (!flush && rest.length > LONG_SENTENCE) {
+    // Look for the last clause break inside the part that is definitely
+    // settled, so a comma that is still being typed isn't split on.
+    const settled = rest.slice(0, rest.length - 1);
+    let at = -1;
+    for (let i = settled.length - 1; i >= 0; i--) {
+      if (CLAUSE_END.test(settled[i])) {
+        at = i;
+        break;
+      }
+    }
+    if (at >= 0) {
+      const clause = rest.slice(0, at + 1).trim();
+      if (clause) sentences.push(clause);
+      rest = rest.slice(at + 1);
+    }
+  }
+
+  if (flush) {
+    const last = rest.trim();
+    if (last) sentences.push(last);
+    rest = "";
+  }
+
+  return { sentences, rest: flush ? "" : rest };
+}
