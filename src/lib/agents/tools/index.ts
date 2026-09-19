@@ -1,6 +1,7 @@
 import type { LLMToolDef } from "@/lib/llm/types";
 import { createPlanTool } from "./create-plan";
 import { createDocumentTool } from "./create-document";
+import { getApiUsageTool } from "./get-api-usage";
 import { getCalendarEventsTool } from "./get-calendar-events";
 import { createEmailDraftTool, readEmailTool, searchEmailTool, sendEmailTool } from "./email";
 import { readDriveFileTool, searchDriveTool } from "./drive";
@@ -13,6 +14,7 @@ export const TOOLS: ToolDefinition[] = [
   createPlanTool,
   createDocumentTool,
   getCalendarEventsTool,
+  getApiUsageTool,
   searchEmailTool,
   readEmailTool,
   createEmailDraftTool,
