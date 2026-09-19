@@ -221,6 +221,10 @@ media, which is a lot of setup for little a personal agent can use.
      — see `src/lib/speech-text.ts`, checked by `pnpm test:speech` — so this
      is only for proper nouns.
 
+   The weather panel needs nothing: it reads Open-Meteo, which is free and
+   unauthenticated. Set `WEATHER_PLACE`/`WEATHER_LATITUDE`/
+   `WEATHER_LONGITUDE`/`WEATHER_TIMEZONE` only to move it off Tokyo.
+
    The home screen is voice-only. Touch the ring to talk, or switch WAKE on
    and call it by name — "フライデー" — and it starts listening on its own.
    Speaking over a reply cuts it short and hands the turn back, so you never
