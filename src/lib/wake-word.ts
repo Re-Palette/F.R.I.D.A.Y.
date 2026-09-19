@@ -48,6 +48,39 @@ export function matchWakeWord(transcript: string): WakeMatch {
   return { matched: true, rest };
 }
 
+/**
+ * Being dismissed.
+ *
+ * The counterpart to being called: "ありがとうフライデー" ends the
+ * conversation, closes the microphone and puts it back to waiting for its
+ * name. It is deliberately not a way of turning the wake word off — that
+ * would mean the only hands-free way to stop it is also the thing that
+ * stops it being hands-free.
+ *
+ * Nothing about this reaches the model. It is matched here and answered
+ * here, so saying thank you costs nothing and takes no time.
+ */
+const THANKS = /ありがとう?(?:ございました|ございます)?|サンキュー|さんきゅー|thank(?:s| ?you)/i;
+
+/** What is allowed to be left over and still count as just a goodbye. */
+const FILLER =
+  /^(?:ね|よ|な|ー|っ|です|でした|ます|ました|どうも|ほんと|ほんとに|ほんとう|本当|本当に|すごく|とても|はい|うん|ok|okay)+$/i;
+
+export function matchDismissal(transcript: string): boolean {
+  const text = transcript.trim();
+  if (!text || !THANKS.test(text)) return false;
+
+  // Take out the thanks, the name and the punctuation. Whatever is left is
+  // the actual request — "ありがとう、ところで明日の予定は？" is not a
+  // goodbye, and neither is "田中さんにありがとうと伝えて".
+  const rest = text
+    .replace(THANKS, "")
+    .replace(WAKE, "")
+    .replace(/[\s、。，．！!？?,.・「」『』ー～〜]/g, "");
+
+  return rest === "" || FILLER.test(rest);
+}
+
 export interface WakeListener {
   stop: () => void;
 }

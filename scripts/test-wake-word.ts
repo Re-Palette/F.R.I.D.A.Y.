@@ -6,7 +6,7 @@
  * mishearings count as being called, which words must never wake it, and
  * how much of "フライデー、明日の予定は？" survives as the question.
  */
-import { matchWakeWord } from "../src/lib/wake-word";
+import { matchDismissal, matchWakeWord } from "../src/lib/wake-word";
 
 const cases: Array<[string, string, boolean, string]> = [
   ["called by name", "フライデー", true, ""],
@@ -38,5 +38,40 @@ for (const [name, input, matched, rest] of cases) {
   }
 }
 
-console.log(failures ? `\n${failures} failed` : `\nall ${cases.length} passed`);
+// --- being dismissed: "ありがとうフライデー" ends the conversation ---
+
+const dismissals: Array<[string, string, boolean]> = [
+  ["thanked by name", "ありがとうフライデー", true],
+  ["name first", "フライデーありがとう", true],
+  ["with a comma", "ありがとう、フライデー", true],
+  ["politely", "ありがとうございますフライデー", true],
+  ["politely, past tense", "フライデー、ありがとうございました", true],
+  ["just thanks", "ありがとう", true],
+  ["just thanks, politely", "ありがとうございます", true],
+  ["with a filler in front", "どうもありがとうフライデー", true],
+  ["in katakana", "サンキューフライデー", true],
+  ["in english", "Thanks Friday", true],
+  // The ones that must not end the conversation: thanks is a common way to
+  // open a request, and an errand about thanking someone is not a goodbye.
+  ["thanks then a question", "ありがとう、ところで明日の予定は？", false],
+  ["an errand containing thanks", "田中さんにありがとうと伝えて", false],
+  ["thanks inside a longer sentence", "資料ありがとう、あと請求書も送っておいて", false],
+  ["the name alone is a greeting, not a goodbye", "フライデー", false],
+  ["an ordinary request", "明日の予定は？", false],
+];
+
+for (const [name, input, expected] of dismissals) {
+  const actual = matchDismissal(input);
+  if (actual === expected) {
+    console.log(`  ok  dismissal: ${name}`);
+  } else {
+    failures++;
+    console.log(`FAIL  dismissal: ${name}`);
+    console.log(`      in:       ${JSON.stringify(input)}`);
+    console.log(`      expected: ${expected}  actual: ${actual}`);
+  }
+}
+
+const total = cases.length + dismissals.length;
+console.log(failures ? `\n${failures} failed` : `\nall ${total} passed`);
 process.exit(failures ? 1 : 0);

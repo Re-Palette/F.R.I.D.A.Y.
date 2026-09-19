@@ -50,6 +50,7 @@ export function ResultPanel({ heard, reply, error, state, busy }: ResultPanelPro
         {empty ? (
           <p className="text-[11px] leading-relaxed text-[var(--hud-orange-dim)]">
             待機中 — リングに触れるか、下の欄に入力してください。
+            「ありがとうフライデー」で終了します。
           </p>
         ) : (
           <div className="flex flex-col gap-2">

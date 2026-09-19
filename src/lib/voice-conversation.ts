@@ -1,10 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { startSpeaking, stopSpeaking, useSpeechInput } from "@/lib/speech";
+import { speak, startSpeaking, stopSpeaking, useSpeechInput } from "@/lib/speech";
 import { takeSentences } from "@/lib/speech-text";
 import { releaseMicrophone, watchForInterruption, type ActivityMonitor } from "@/lib/voice-activity";
-import { startWakeListening, useWakeWord } from "@/lib/wake-word";
+import { matchDismissal, startWakeListening, useWakeWord } from "@/lib/wake-word";
 
 export type VoicePhase = "idle" | "listening" | "thinking" | "speaking";
 
@@ -30,6 +30,8 @@ export interface VoiceConversation {
 }
 
 const FAILED = "応答を取得できませんでした。";
+/** Said back when dismissed, so it is clear from across the room that it heard. */
+const FAREWELL = "どういたしまして。";
 
 /**
  * A conversation held entirely out loud.
@@ -117,6 +119,27 @@ export function useVoiceConversation(): VoiceConversation {
       setHeard(text);
       setReply("");
       setError(null);
+
+      // "ありがとうフライデー" ends it. Matched here rather than sent to the
+      // model: saying thank you should cost nothing, take no time, and not
+      // be answered with a paragraph. It closes the microphone and goes back
+      // to waiting for its name — it does not switch the wake word off,
+      // which would make the only hands-free way to stop it the thing that
+      // stops it being hands-free.
+      if (matchDismissal(text)) {
+        conversing.current = false;
+        spoken.current = false;
+        setReply(FAREWELL);
+        setPhase("speaking");
+        speak(FAREWELL, {
+          onEnd: () => {
+            releaseMicrophone();
+            setPhase("idle");
+          },
+        });
+        return;
+      }
+
       setPhase("thinking");
 
       try {
