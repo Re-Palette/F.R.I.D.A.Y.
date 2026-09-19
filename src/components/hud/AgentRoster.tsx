@@ -17,6 +17,7 @@ const ROSTER = [
   { label: "F.R.I.D.A.Y.", href: "/", note: "CORE" },
   { label: "CHAT", href: "/chat", note: "会話履歴" },
   { label: "DOCS", href: "/documents", note: "資料" },
+  { label: "MEMORY", href: "/memories", note: "記憶" },
   { label: "PLANS", href: "/plans", note: "計画" },
   { label: "TASKS", href: "/tasks", note: "予定タスク" },
   { label: "APPROVALS", href: "/approvals", note: "承認待ち" },

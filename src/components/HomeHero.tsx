@@ -36,6 +36,7 @@ const PHASE_TAG: Record<VoicePhase, string> = {
 const SMALL_SCREEN_LINKS = [
   { href: "/chat", label: "会話履歴" },
   { href: "/documents", label: "資料" },
+  { href: "/memories", label: "記憶" },
   { href: "/plans", label: "計画" },
   { href: "/tasks", label: "予定タスク" },
   { href: "/approvals", label: "承認待ち" },

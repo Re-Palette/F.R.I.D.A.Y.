@@ -221,6 +221,14 @@ media, which is a lot of setup for little a personal agent can use.
      — see `src/lib/speech-text.ts`, checked by `pnpm test:speech` — so this
      is only for proper nouns.
 
+   Nothing said is lost. Every message is stored as it happens, and once a
+   night the day just ended is read back: written up as a report (to Notion
+   if `NOTION_API_KEY`/`NOTION_PARENT_PAGE_ID` are set, otherwise kept in
+   FRIDAY under 資料) and mined for the facts worth carrying forward. Those
+   land in 記憶 at `/memories`, where they can be read and struck out — the
+   `remember` tool still fires in the moment, and this is the nightly pass
+   that catches what it missed.
+
    The weather panel needs nothing: it reads Open-Meteo, which is free and
    unauthenticated. Set `WEATHER_PLACE`/`WEATHER_LATITUDE`/
    `WEATHER_LONGITUDE`/`WEATHER_TIMEZONE` only to move it off Tokyo.
