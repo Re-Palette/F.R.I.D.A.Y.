@@ -33,6 +33,35 @@
 
   --glow-accent: 0 0 24px 0 rgba(255, 122, 26, 0.35);
   --glow-accent-soft: 0 0 12px 0 rgba(255, 122, 26, 0.2);
+
+  /*
+   * HUD layer.
+   *
+   * The palette above is unchanged — this deployment was already amber on
+   * near-black, so nothing here is a recolour. What these add is the
+   * instrumentation vocabulary the hero screen is built from: panel fills
+   * that sit *over* the void rather than beside it, a line colour distinct
+   * from the general border, and glow strengths that can be turned up on
+   * what is live and down on what is only present.
+   */
+  --hud-bg: #050404;
+  --hud-panel: rgba(26, 14, 7, 0.72);
+  --hud-panel-solid: #0c0806;
+  --hud-orange: #ff7a1a;
+  --hud-orange-bright: #ffc489;
+  --hud-orange-dim: #a04d10;
+  --hud-orange-faint: rgba(255, 122, 26, 0.32);
+  --hud-metal: #4c3a2e;
+  --hud-metal-dim: #2e241d;
+  --hud-line: rgba(255, 122, 26, 0.42);
+  --hud-line-strong: rgba(255, 138, 46, 0.75);
+  --hud-text: #ffd9b8;
+  --hud-text-dim: rgba(255, 190, 140, 0.55);
+  --hud-glow: 0 0 18px rgba(255, 122, 26, 0.35);
+  --hud-glow-strong: 0 0 28px rgba(255, 122, 26, 0.55);
+  --hud-cut: 10px;
+
+  --font-hud: var(--font-orbitron);
 }
 
 @theme inline {
@@ -50,6 +79,13 @@
   --color-border-strong: var(--color-border-strong);
   --font-display: var(--font-display);
   --font-mono: var(--font-mono);
+  --font-hud: var(--font-hud);
+  --color-hud-orange: var(--hud-orange);
+  --color-hud-orange-bright: var(--hud-orange-bright);
+  --color-hud-orange-dim: var(--hud-orange-dim);
+  --color-hud-text: var(--hud-text);
+  --color-hud-text-dim: var(--hud-text-dim);
+  --color-hud-line: var(--hud-line);
 }
 
 * {
@@ -61,7 +97,7 @@ html {
 }
 
 body {
-  background: var(--color-void);
+  background: var(--hud-bg);
   color: var(--color-fg);
   font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
 }
@@ -119,6 +155,102 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .ring-rotate,
   .ring-blink {
+    animation: none;
+  }
+}
+
+/*
+ * Angular geometry.
+ *
+ * Two opposite corners are cut rather than rounded, which is most of what
+ * separates instrumentation from a card. Drawn as a clip rather than a
+ * border so the diagonal is a real edge; HudPanel stacks two of these one
+ * pixel apart to get a hairline along it.
+ */
+.hud-cut {
+  clip-path: polygon(
+    var(--cut, var(--hud-cut)) 0,
+    100% 0,
+    100% calc(100% - var(--cut, var(--hud-cut))),
+    calc(100% - var(--cut, var(--hud-cut))) 100%,
+    0 100%,
+    0 var(--cut, var(--hud-cut))
+  );
+}
+
+/* The faint technical grid the panels sit on. Two gradients rather than an
+   image so it costs nothing and scales with the screen. */
+.hud-grid {
+  background-image:
+    linear-gradient(to right, rgba(255, 122, 26, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 122, 26, 0.05) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+@keyframes hud-sweep {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes hud-wave {
+  0%,
+  100% {
+    transform: scaleY(0.18);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+@keyframes hud-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* A single bright line travelling down a panel — the one piece of motion
+   that reads as a surface being read rather than decorated. */
+@keyframes hud-scan {
+  0% {
+    transform: translateY(-100%);
+  }
+  100% {
+    transform: translateY(1100%);
+  }
+}
+
+.hud-sweep {
+  transform-box: view-box;
+  transform-origin: center;
+  animation: hud-sweep var(--hud-duration, 4s) linear infinite;
+}
+
+.hud-wave {
+  transform-origin: center;
+  animation: hud-wave var(--hud-duration, 1.1s) ease-in-out infinite;
+  animation-delay: var(--hud-delay, 0s);
+}
+
+.hud-pulse {
+  animation: hud-pulse var(--hud-duration, 2.4s) ease-in-out infinite;
+  animation-delay: var(--hud-delay, 0s);
+}
+
+.hud-scan {
+  animation: hud-scan var(--hud-duration, 7s) linear infinite;
+  animation-delay: var(--hud-delay, 0s);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hud-sweep,
+  .hud-wave,
+  .hud-pulse,
+  .hud-scan {
     animation: none;
   }
 }

@@ -1,11 +1,19 @@
 import type { Metadata, Viewport } from "next";
-import { Space_Grotesk, JetBrains_Mono } from "next/font/google";
+import { Space_Grotesk, JetBrains_Mono, Orbitron } from "next/font/google";
 import "./globals.css";
 
 const spaceGrotesk = Space_Grotesk({
   variable: "--font-space-grotesk",
   subsets: ["latin"],
   weight: ["300", "400", "500", "700"],
+});
+
+// The wide geometric display face the HUD is lettered in. Latin only, which
+// is all it is used for — Japanese falls through to the stack below.
+const orbitron = Orbitron({
+  variable: "--font-orbitron",
+  subsets: ["latin"],
+  weight: ["400", "500", "700"],
 });
 
 const jetbrainsMono = JetBrains_Mono({
@@ -23,16 +31,16 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   // Paints the installed window's chrome the same near-black as the app, so
   // there is no light seam around it.
-  themeColor: "#050505",
+  themeColor: "#050404",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="ja"
-      className={`${spaceGrotesk.variable} ${jetbrainsMono.variable} h-full antialiased dark`}
+      className={`${spaceGrotesk.variable} ${jetbrainsMono.variable} ${orbitron.variable} h-full antialiased dark`}
     >
-      <body className="min-h-full flex flex-col bg-void text-fg">{children}</body>
+      <body className="flex min-h-full flex-col bg-[var(--hud-bg)] text-fg">{children}</body>
     </html>
   );
 }

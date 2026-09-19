@@ -21,6 +21,10 @@ export interface VoiceConversation {
   error: string | null;
   /** Starts the conversation, or ends it if one is already running. */
   toggle: () => void;
+  /** Takes a turn from text instead of speech — the answer is spoken either way. */
+  send: (text: string) => void;
+  /** True while the microphone is open for this turn. */
+  listening: boolean;
   wakeEnabled: boolean;
   setWakeEnabled: (next: boolean) => void;
 }
@@ -62,6 +66,12 @@ export function useVoiceConversation(): VoiceConversation {
   // `start` is needed inside the handler that `useSpeechInput` is given,
   // which is defined before it returns; a ref is what lets the loop close.
   const startListening = useRef<() => void>(() => {});
+  // How this turn was started. A spoken turn hands the microphone back when
+  // the reply ends, because that is what a conversation does; a typed one
+  // does not, because someone who typed is at a keyboard and re-opening the
+  // microphone on them is both presumptuous and, while it is open, in the
+  // way of the next thing they type.
+  const spoken = useRef(false);
   const interruption = useRef<ActivityMonitor | null>(null);
   const wantsInterruption = useRef(false);
 
@@ -90,6 +100,7 @@ export function useVoiceConversation(): VoiceConversation {
     void watchForInterruption(() => {
       if (!wantsInterruption.current || !conversing.current) return;
       stopSpeaking();
+      spoken.current = true;
       setReply("");
       setPhase("listening");
       startListening.current();
@@ -128,7 +139,11 @@ export function useVoiceConversation(): VoiceConversation {
         const session = startSpeaking({
           onStart: armInterruption,
           onEnd: () => {
-            if (!conversing.current) return setPhase("idle");
+            if (!conversing.current || !spoken.current) {
+              conversing.current = false;
+              releaseMicrophone();
+              return setPhase("idle");
+            }
             setPhase("listening");
             startListening.current();
           },
@@ -206,18 +221,23 @@ export function useVoiceConversation(): VoiceConversation {
     []
   );
 
-  const begin = useCallback((first?: string) => {
-    conversing.current = true;
-    setError(null);
-    setReply("");
-    if (first) {
-      void handleFinal(first);
-      return;
-    }
-    setHeard("");
-    setPhase("listening");
-    startListening.current();
-  }, [handleFinal]);
+  const begin = useCallback(
+    (first?: string) => {
+      conversing.current = true;
+      setError(null);
+      setReply("");
+      if (first) {
+        spoken.current = false;
+        void handleFinal(first);
+        return;
+      }
+      spoken.current = true;
+      setHeard("");
+      setPhase("listening");
+      startListening.current();
+    },
+    [handleFinal]
+  );
 
   /**
    * Listening for its own name, which only happens while nothing else is:
@@ -229,7 +249,10 @@ export function useVoiceConversation(): VoiceConversation {
   useEffect(() => {
     if (!waiting) return;
     const listener = startWakeListening({
-      onWake: (rest) => begin(rest || undefined),
+      onWake: (rest) => {
+        begin(rest || undefined);
+        spoken.current = true;
+      },
       onError: (message) => {
         // A microphone that won't open can't be waited on; saying so and
         // switching the setting off beats a screen that claims to be
@@ -269,10 +292,12 @@ export function useVoiceConversation(): VoiceConversation {
     waiting,
     // While listening the subtitle should be the words as they are
     // recognised; once the turn is sent it settles on what was actually heard.
-    heard: phase === "listening" ? speech.transcript : heard,
+    heard: phase === "listening" ? speech.transcript || heard : heard,
     reply,
     error: error ?? speech.error,
     toggle,
+    send: begin,
+    listening: speech.listening,
     wakeEnabled,
     setWakeEnabled,
   };
