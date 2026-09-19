@@ -191,7 +191,11 @@ export async function getWeather(): Promise<WeatherReport | null> {
     `&daily=weather_code,temperature_2m_max,temperature_2m_min` +
     `&timezone=${encodeURIComponent(timezone)}&forecast_days=4`;
 
-  const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+  // Explicitly uncached. Next patches fetch in route handlers, and a forecast
+  // quietly held in a framework cache would freeze the panel on whatever the
+  // sky was doing when the instance started — the ten-minute cache above is
+  // the only one this should have.
+  const res = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(8000) });
   if (!res.ok) {
     throw new Error(`Open-Meteo ${res.status}: ${(await res.text().catch(() => "")).slice(0, 300)}`);
   }
