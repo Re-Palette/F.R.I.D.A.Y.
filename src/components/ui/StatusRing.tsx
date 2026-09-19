@@ -16,28 +16,27 @@ const C = VB / 2;
 const SEGMENTS = "34 6 12 6 54 10 22 6 8 6 40 6 16 10 28 6";
 const FINE_TICKS = "1.5 4.5";
 
-type Spin = { duration: string; reverse?: boolean; steps?: number };
+type Spin = { duration: string; reverse?: boolean };
 
 /**
  * The instrument the whole interface is built around: measured arcs turning
  * at different rates around a luminous amber band, with the wordmark in the
  * middle of it.
  *
- * Arcs that step round in discrete clicks (`steps`) rather than gliding are
- * what makes this read as machinery instead of a spinner — mixed with a
- * couple of smooth ones so it doesn't become uniformly jerky.
+ * Everything glides. What makes it read as machinery rather than a spinner
+ * is the uneven segment runs and the fixed calipers they turn against —
+ * stepping the motion as well only made it look like dropped frames.
  *
  * Drawn in a fixed 400-unit viewBox and scaled by CSS, so the same component
  * is the hero at 544px and the lock screen's mark at 140; `size` is a
  * maximum, not a fixed width, so narrow screens shrink it.
  */
 export function StatusRing({ size = 160, active = true, label }: StatusRingProps) {
-  const spin = ({ duration, reverse, steps }: Spin): CSSProperties | undefined =>
+  const spin = ({ duration, reverse }: Spin): CSSProperties | undefined =>
     active
       ? ({
           "--ring-duration": duration,
           "--ring-direction": reverse ? "reverse" : "normal",
-          ...(steps ? { "--ring-easing": `steps(${steps})` } : {}),
         } as CSSProperties)
       : undefined;
 
@@ -78,13 +77,13 @@ export function StatusRing({ size = 160, active = true, label }: StatusRingProps
           cx={C} cy={C} r={188}
           fill="none" stroke="var(--color-ring-metal)" strokeWidth={1}
           strokeDasharray={FINE_TICKS} opacity={0.5}
-          className={cls()} style={spin({ duration: "120s", steps: 72 })}
+          className={cls()} style={spin({ duration: "120s"})}
         />
         <circle
           cx={C} cy={C} r={172}
           fill="none" stroke="var(--color-ring-metal)" strokeWidth={7}
           strokeDasharray={SEGMENTS} opacity={0.5}
-          className={cls()} style={spin({ duration: "90s", reverse: true, steps: 36 })}
+          className={cls()} style={spin({ duration: "90s", reverse: true})}
         />
         <circle
           cx={C} cy={C} r={158}
@@ -96,13 +95,13 @@ export function StatusRing({ size = 160, active = true, label }: StatusRingProps
           cx={C} cy={C} r={146}
           fill="none" stroke="var(--color-ring-metal)" strokeWidth={9}
           strokeDasharray="20 10 46 8 14 12 30 8" opacity={0.6}
-          className={cls()} style={spin({ duration: "60s", reverse: true, steps: 24 })}
+          className={cls()} style={spin({ duration: "60s", reverse: true})}
         />
         <circle
           cx={C} cy={C} r={132}
           fill="none" stroke="var(--color-ring-metal)" strokeWidth={1}
           strokeDasharray={FINE_TICKS} opacity={0.45}
-          className={cls()} style={spin({ duration: "45s", steps: 90 })}
+          className={cls()} style={spin({ duration: "45s"})}
         />
 
         {/* Calipers at the cardinals — fixed, so everything else is visibly
@@ -181,7 +180,7 @@ export function StatusRing({ size = 160, active = true, label }: StatusRingProps
           cx={C} cy={C} r={92}
           fill="none" stroke="var(--color-ring-metal)" strokeWidth={1}
           strokeDasharray="2 10" opacity={0.6}
-          className={cls()} style={spin({ duration: "30s", reverse: true, steps: 30 })}
+          className={cls()} style={spin({ duration: "30s", reverse: true})}
         />
 
         {/* Where the frame's crosshair meets the outermost arc. Drawn here so

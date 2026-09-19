@@ -128,7 +128,7 @@ body {
 @keyframes friday-blink {
   0%,
   100% {
-    opacity: 0.15;
+    opacity: 0.2;
   }
   50% {
     opacity: 1;
@@ -140,14 +140,24 @@ body {
   transform-origin: center;
   animation: friday-rotate var(--ring-duration, 60s) linear infinite;
   animation-direction: var(--ring-direction, normal);
-  /* steps() makes an arc index round in discrete clicks instead of gliding,
-     which is most of what reads as mechanical rather than decorative. */
   animation-timing-function: var(--ring-easing, linear);
+  /* These turn for as long as the page is open, so it is worth telling the
+     compositor up front rather than letting it work it out every frame. */
+  will-change: transform;
 }
 
+/*
+ * The readouts pulse rather than switching.
+ *
+ * steps(1, end) made them snap between states, which is a hard edge in an
+ * interface where everything else glides — and it was reading as a dropped
+ * frame rather than as an indicator. The discrete character comes from the
+ * shape and the staggered delays, not from the motion being abrupt.
+ */
 .ring-blink {
-  animation: friday-blink var(--ring-duration, 4s) steps(1, end) infinite;
+  animation: friday-blink var(--ring-duration, 4s) ease-in-out infinite;
   animation-delay: var(--ring-delay, 0s);
+  will-change: opacity;
 }
 
 /* Continuous rotation is exactly the kind of motion that causes trouble for
@@ -220,7 +230,7 @@ body {
     transform: translateY(-100%);
   }
   100% {
-    transform: translateY(1100%);
+    transform: translateY(650%);
   }
 }
 
@@ -228,12 +238,14 @@ body {
   transform-box: view-box;
   transform-origin: center;
   animation: hud-sweep var(--hud-duration, 4s) linear infinite;
+  will-change: transform;
 }
 
 .hud-wave {
   transform-origin: center;
   animation: hud-wave var(--hud-duration, 1.1s) ease-in-out infinite;
   animation-delay: var(--hud-delay, 0s);
+  will-change: transform;
 }
 
 .hud-pulse {

@@ -6,16 +6,21 @@ import { cn } from "@/lib/cn";
 const VB = 400;
 const C = VB / 2;
 
-type Arc = {
-  r: number;
+type Layer = {
   width: number;
   dash: string;
   colour: string;
   opacity: number;
+  /** Adds a blurred copy underneath, inside the same rotating group. */
+  glow?: boolean;
+};
+
+type Ring = {
+  r: number;
   duration: string;
   reverse?: boolean;
-  steps?: number;
-  glow?: boolean;
+  /** Drawn together and turned together — see the note in the render. */
+  layers: Layer[];
 };
 
 /**
@@ -23,24 +28,48 @@ type Arc = {
  *
  * Uneven dash patterns and mismatched rates are the whole trick: evenly
  * spaced segments turning at one speed read as a loading spinner, while
- * runs of different lengths indexing at different rates read as an
- * instrument whose parts mean different things. A few step round in
- * discrete clicks rather than gliding, which is most of what makes it
- * mechanical instead of decorative.
+ * runs of different lengths turning at different rates read as an
+ * instrument whose parts mean different things. All of them glide — what
+ * makes this mechanical is the shape of the segments and the fixed
+ * calipers they pass, not the motion stuttering.
+ *
+ * Layers sharing a radius are one ring, not several: the lit segment, the
+ * structure it rides on, and the notches cut across it all belong to the
+ * same object and have to turn as one.
  */
-const ARCS: Arc[] = [
-  { r: 194, width: 1, dash: "1.5 5", colour: "var(--hud-metal)", opacity: 0.85, duration: "150s", steps: 96 },
-  { r: 186, width: 1, dash: "30 14", colour: "var(--hud-metal)", opacity: 0.7, duration: "110s", reverse: true, steps: 44 },
-  { r: 176, width: 9, dash: "46 10 18 8 74 12 30 8 14 10", colour: "var(--hud-metal)", opacity: 0.9, duration: "95s", reverse: true, steps: 40 },
-  { r: 176, width: 9, dash: "46 430", colour: "var(--hud-orange)", opacity: 0.95, duration: "95s", reverse: true, steps: 40, glow: true },
-  { r: 164, width: 3, dash: "2.5 8", colour: "var(--hud-orange)", opacity: 0.5, duration: "60s", steps: 64 },
-  { r: 152, width: 13, dash: "96 214 58 150", colour: "var(--hud-orange)", opacity: 1, duration: "34s", glow: true },
-  { r: 152, width: 13, dash: "3 15", colour: "#120a05", opacity: 0.55, duration: "34s" },
-  { r: 138, width: 1, dash: "1.5 4", colour: "var(--hud-metal)", opacity: 0.9, duration: "80s", steps: 72 },
-  { r: 128, width: 8, dash: "22 12 46 10 18 14 36 10", colour: "var(--hud-metal)", opacity: 0.95, duration: "70s", reverse: true, steps: 28 },
-  { r: 118, width: 2, dash: "2 7", colour: "var(--hud-orange)", opacity: 0.4, duration: "48s", steps: 80 },
-  { r: 108, width: 11, dash: "124 160 44 180", colour: "var(--hud-orange)", opacity: 1, duration: "26s", reverse: true, glow: true },
-  { r: 108, width: 11, dash: "3 13", colour: "#120a05", opacity: 0.5, duration: "26s", reverse: true },
+const RINGS: Ring[] = [
+  { r: 194, duration: "150s", layers: [{ width: 1, dash: "1.5 5", colour: "var(--hud-metal)", opacity: 0.85 }] },
+  { r: 186, duration: "110s", reverse: true, layers: [{ width: 1, dash: "30 14", colour: "var(--hud-metal)", opacity: 0.7 }] },
+  {
+    r: 176,
+    duration: "95s",
+    reverse: true,
+    layers: [
+      { width: 9, dash: "46 10 18 8 74 12 30 8 14 10", colour: "var(--hud-metal)", opacity: 0.9 },
+      { width: 9, dash: "46 430", colour: "var(--hud-orange)", opacity: 0.95, glow: true },
+    ],
+  },
+  { r: 164, duration: "60s", layers: [{ width: 3, dash: "2.5 8", colour: "var(--hud-orange)", opacity: 0.5 }] },
+  {
+    r: 152,
+    duration: "34s",
+    layers: [
+      { width: 13, dash: "96 214 58 150", colour: "var(--hud-orange)", opacity: 1, glow: true },
+      { width: 13, dash: "3 15", colour: "#120a05", opacity: 0.55 },
+    ],
+  },
+  { r: 138, duration: "80s", layers: [{ width: 1, dash: "1.5 4", colour: "var(--hud-metal)", opacity: 0.9 }] },
+  { r: 128, duration: "70s", reverse: true, layers: [{ width: 8, dash: "22 12 46 10 18 14 36 10", colour: "var(--hud-metal)", opacity: 0.95 }] },
+  { r: 118, duration: "48s", layers: [{ width: 2, dash: "2 7", colour: "var(--hud-orange)", opacity: 0.4 }] },
+  {
+    r: 108,
+    duration: "26s",
+    reverse: true,
+    layers: [
+      { width: 11, dash: "124 160 44 180", colour: "var(--hud-orange)", opacity: 1, glow: true },
+      { width: 11, dash: "3 13", colour: "#120a05", opacity: 0.5 },
+    ],
+  },
 ];
 
 interface FridayCoreProps {
@@ -57,11 +86,10 @@ interface FridayCoreProps {
  * is the hero on a desktop and still legible on a phone.
  */
 export function FridayCore({ live, className }: FridayCoreProps) {
-  const spin = (arc: Arc): CSSProperties =>
+  const spin = (ring: Ring): CSSProperties =>
     ({
-      "--ring-duration": arc.duration,
-      "--ring-direction": arc.reverse ? "reverse" : "normal",
-      ...(arc.steps ? { "--ring-easing": `steps(${arc.steps})` } : {}),
+      "--ring-duration": ring.duration,
+      "--ring-direction": ring.reverse ? "reverse" : "normal",
     }) as CSSProperties;
 
   return (
@@ -81,25 +109,32 @@ export function FridayCore({ live, className }: FridayCoreProps) {
           </linearGradient>
         </defs>
 
-        {/* Keyed by position: several arcs deliberately share a radius, one
-            drawing the structure and another the lit segment riding on it. */}
-        {ARCS.map((arc, index) => (
-          <g key={index}>
-            {arc.glow && (
-              <circle
-                cx={C} cy={C} r={arc.r}
-                fill="none" stroke={arc.colour} strokeWidth={arc.width + 6}
-                strokeDasharray={arc.dash} filter="url(#core-bloom)"
-                opacity={live ? 0.5 : 0.28}
-                className="ring-rotate" style={spin(arc)}
-              />
-            )}
-            <circle
-              cx={C} cy={C} r={arc.r}
-              fill="none" stroke={arc.colour} strokeWidth={arc.width}
-              strokeDasharray={arc.dash} opacity={arc.opacity}
-              className="ring-rotate" style={spin(arc)}
-            />
+        {/* One rotating group per ring.
+            Everything on a ring — the lit segment, its bloom, the notches
+            cut across it — turns inside a single transform. Animating them
+            separately meant three animations to keep in step, a blur
+            re-rasterised every frame, and a glow free to drift off the arc
+            it belongs to. */}
+        {RINGS.map((ring) => (
+          <g key={ring.r} className="ring-rotate" style={spin(ring)}>
+            {ring.layers.map((layer, index) => (
+              <g key={index}>
+                {layer.glow && (
+                  <circle
+                    cx={C} cy={C} r={ring.r}
+                    fill="none" stroke={layer.colour} strokeWidth={layer.width + 6}
+                    strokeDasharray={layer.dash} filter="url(#core-bloom)"
+                    opacity={live ? 0.5 : 0.28}
+                    className="transition-opacity duration-700 ease-out"
+                  />
+                )}
+                <circle
+                  cx={C} cy={C} r={ring.r}
+                  fill="none" stroke={layer.colour} strokeWidth={layer.width}
+                  strokeDasharray={layer.dash} opacity={layer.opacity}
+                />
+              </g>
+            ))}
           </g>
         ))}
 
@@ -135,10 +170,15 @@ export function FridayCore({ live, className }: FridayCoreProps) {
         <circle cx={C} cy={C} r={98} fill="#050302" />
         <circle cx={C} cy={C} r={98} fill="url(#core-face)" />
 
-        <g className="ring-rotate" style={{ "--ring-duration": live ? "3.5s" : "7s" } as CSSProperties}>
+        {/* One constant rate. Changing the duration to show a turn in
+            progress restarted the animation and jumped the sweep back to
+            the top; brightness says the same thing without the jolt. */}
+        <g className="ring-rotate" style={{ "--ring-duration": "6s" } as CSSProperties}>
           <path
             d={`M ${C} ${C} L ${C + 94} ${C - 30} A 98 98 0 0 1 ${C + 94} ${C + 30} Z`}
-            fill="url(#core-sweep)" opacity={0.22}
+            fill="url(#core-sweep)"
+            opacity={live ? 0.42 : 0.2}
+            className="transition-opacity duration-700 ease-out"
           />
         </g>
 
@@ -148,7 +188,7 @@ export function FridayCore({ live, className }: FridayCoreProps) {
         <circle
           cx={C} cy={C} r={90}
           fill="none" stroke="var(--hud-orange)" strokeWidth={1} strokeDasharray="2 10" opacity={0.5}
-          className="ring-rotate" style={{ "--ring-duration": "40s", "--ring-direction": "reverse", "--ring-easing": "steps(36)" } as CSSProperties}
+          className="ring-rotate" style={{ "--ring-duration": "40s", "--ring-direction": "reverse" } as CSSProperties}
         />
       </svg>
 

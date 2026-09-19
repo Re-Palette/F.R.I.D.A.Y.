@@ -42,7 +42,8 @@ export function ResultPanel({ heard, reply, error, state, busy }: ResultPanelPro
     >
       {/* A line travelling down the panel while a turn is in progress. */}
       {busy && (
-        <span className="hud-scan pointer-events-none absolute inset-x-0 top-0 h-8 bg-gradient-to-b from-transparent via-[rgba(255,122,26,0.12)] to-transparent" />
+        <span className="hud-scan pointer-events-none absolute inset-x-0 top-0 h-8 bg-gradient-to-b from-transparent via-[rgba(255,122,26,0.12)] to-transparent"
+          style={{ "--hud-duration": "4.5s" } as React.CSSProperties} />
       )}
 
       <div className="max-h-[20vh] min-h-[3.25rem] overflow-y-auto px-4 py-3">
