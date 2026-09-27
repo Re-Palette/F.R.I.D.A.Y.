@@ -32,7 +32,12 @@ export const config = {
   // install it. api/cron is excluded because a scheduled invocation carries
   // no cookie and would otherwise be redirected to the unlock screen every
   // night; it authenticates with CRON_SECRET instead.
+  //
+  // privacy and terms are excluded because Google's OAuth consent screen
+  // links to them, and a privacy policy that needs a password to read is
+  // not a privacy policy. They are the only pages here written for someone
+  // other than the owner, and they contain nothing of his.
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|icon-192.png|icon-512.png|manifest.webmanifest|unlock|api/unlock|api/cron).*)",
+    "/((?!_next/static|_next/image|favicon.ico|icon-192.png|icon-512.png|manifest.webmanifest|unlock|privacy|terms|api/unlock|api/cron).*)",
   ],
 };
