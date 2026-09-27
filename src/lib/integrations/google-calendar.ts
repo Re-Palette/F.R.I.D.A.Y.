@@ -143,11 +143,26 @@ async function listAccountEvents(
   return perCalendar.flat();
 }
 
+export interface CalendarRead {
+  events: CalendarEvent[];
+  /**
+   * How many accounts could not be read. Their events are missing from
+   * `events`, and whoever is being answered has to be told so.
+   */
+  unavailable: number;
+}
+
 /**
  * timeMin/timeMax are full ISO instants (UTC). Covers every visible calendar
  * of every configured account.
+ *
+ * A failing account used to be logged and then silently dropped, which is a
+ * worse failure than the outage it was trying to survive: two of four
+ * meetings, presented as the whole day, is how someone misses one. The
+ * count comes back so the answer can admit what is missing — the events
+ * that *were* read are still worth having, so this does not throw.
  */
-export async function listEvents(timeMin: string, timeMax: string): Promise<CalendarEvent[]> {
+export async function listEvents(timeMin: string, timeMax: string): Promise<CalendarRead> {
   const tokens = refreshTokens();
   if (!tokens.length) throw new Error("Google Calendar is not configured. See .env.example.");
 
@@ -161,15 +176,18 @@ export async function listEvents(timeMin: string, timeMax: string): Promise<Cale
     }
   });
 
-  // One revoked account shouldn't hide the others, but every account failing
-  // is an outage — reporting that as a free day would be a lie.
+  // Every account failing is an outage — reporting that as a free day would
+  // be a lie of a different size.
   if (settled.every((result) => result.status === "rejected")) {
     throw (settled[0] as PromiseRejectedResult).reason;
   }
 
-  return settled
-    .flatMap((result) => (result.status === "fulfilled" ? result.value : []))
-    .sort((a, b) => startsAt(a) - startsAt(b));
+  return {
+    events: settled
+      .flatMap((result) => (result.status === "fulfilled" ? result.value : []))
+      .sort((a, b) => startsAt(a) - startsAt(b)),
+    unavailable: settled.filter((result) => result.status === "rejected").length,
+  };
 }
 
 function offsetMinutes(): number {
@@ -239,13 +257,21 @@ function localParts(iso: string) {
  * 打ち合わせ" — and asking what's on tomorrow should be answered the way a
  * person would answer it.
  */
-export function describeEvents(label: string, events: CalendarEvent[]): string {
-  if (!events.length) return `${label}の予定はありません。`;
+export function describeEvents(label: string, read: CalendarRead): string {
+  const { events, unavailable } = read;
+  // Said plainly rather than tacked on as a footnote: an answer that is
+  // missing an account's worth of events is not a complete answer, and the
+  // person has to hear that before they act on it.
+  const caveat = unavailable
+    ? `（ただしカレンダー${unavailable}件分を読み取れていないので、抜けがあるかもしれません）`
+    : "";
+
+  if (!events.length) return `${label}の予定はありません。${caveat}`;
 
   const described = events.map(describeEvent);
-  if (described.length === 1) return `${label}は${described[0]}です。`;
+  if (described.length === 1) return `${label}は${described[0]}です。${caveat}`;
 
-  return `${label}は${described.length}件あります。${described.join("、")}です。`;
+  return `${label}は${described.length}件あります。${described.join("、")}です。${caveat}`;
 }
 
 function describeEvent(e: CalendarEvent): string {

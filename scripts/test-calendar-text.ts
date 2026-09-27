@@ -48,7 +48,7 @@ const cases: Array<[string, CalendarEvent[], string]> = [
 
 let failures = 0;
 for (const [name, events, expected] of cases) {
-  const actual = describeEvents("明日", events);
+  const actual = describeEvents("明日", { events, unavailable: 0 });
   if (actual === expected) {
     console.log(`  ok  ${name}`);
   } else {
@@ -59,5 +59,35 @@ for (const [name, events, expected] of cases) {
   }
 }
 
-console.log(failures ? `\n${failures} failed` : `\nall ${cases.length} passed`);
+// An account that could not be read must be admitted to, not quietly
+// dropped: two of four meetings presented as the whole day is how someone
+// misses one.
+const partial = describeEvents("明日", {
+  events: [ev({ location: "渋谷" })],
+  unavailable: 1,
+});
+if (partial.includes("読み取れていない")) {
+  console.log("  ok  a partial read says so");
+} else {
+  failures++;
+  console.log(`FAIL  a partial read says so\n      got: ${partial}`);
+}
+
+const emptyButBroken = describeEvents("明日", { events: [], unavailable: 1 });
+if (emptyButBroken.includes("読み取れていない")) {
+  console.log("  ok  an empty-but-broken day is not reported as free");
+} else {
+  failures++;
+  console.log(`FAIL  an empty-but-broken day is not reported as free\n      got: ${emptyButBroken}`);
+}
+
+const clean = describeEvents("明日", { events: [ev({})], unavailable: 0 });
+if (!clean.includes("読み取れていない")) {
+  console.log("  ok  a complete read carries no caveat");
+} else {
+  failures++;
+  console.log(`FAIL  a complete read carries no caveat\n      got: ${clean}`);
+}
+
+console.log(failures ? `\n${failures} failed` : `\nall ${cases.length + 3} passed`);
 process.exit(failures ? 1 : 0);

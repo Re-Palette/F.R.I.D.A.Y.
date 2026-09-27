@@ -34,9 +34,16 @@ export const getCalendarEventsTool: ToolDefinition = {
 
     try {
       const { timeMin, timeMax } = localDateRangeToUtc(startDate, endDate);
-      const events = await listEvents(timeMin, timeMax);
-      if (!events.length) return { ok: true, content: `No events found for ${startDate}${endDate ? `–${endDate}` : ""}.` };
-      return { ok: true, content: events.map(formatEventLine).join("\n") };
+      const { events, unavailable } = await listEvents(timeMin, timeMax);
+      // The model has to pass this on: a partial day presented as a whole
+      // one is how someone misses a meeting.
+      const caveat = unavailable
+        ? `\n(WARNING: ${unavailable} calendar account(s) could not be read, so events may be missing. Tell the user this.)`
+        : "";
+      if (!events.length) {
+        return { ok: true, content: `No events found for ${startDate}${endDate ? `–${endDate}` : ""}.${caveat}` };
+      }
+      return { ok: true, content: events.map(formatEventLine).join("\n") + caveat };
     } catch (err) {
       return { ok: false, content: `Calendar lookup failed: ${(err as Error).message}` };
     }

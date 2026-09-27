@@ -42,11 +42,12 @@ async function gatherFacts(): Promise<BriefFacts> {
   if (isGoogleCalendarConfigured()) {
     try {
       const { timeMin, timeMax } = localDateRangeToUtc(date);
-      const events = await listEvents(timeMin, timeMax);
+      const { events, unavailable } = await listEvents(timeMin, timeMax);
+      const caveat = unavailable ? `\n（カレンダー${unavailable}件分は読み取れませんでした）` : "";
       sections.push(
         events.length
-          ? `今日の予定 (${events.length}件):\n${events.map(formatEventLine).join("\n")}`
-          : "今日の予定: なし"
+          ? `今日の予定 (${events.length}件):\n${events.map(formatEventLine).join("\n")}${caveat}`
+          : `今日の予定: なし${caveat}`
       );
     } catch (err) {
       // One broken integration shouldn't cost the whole brief.
