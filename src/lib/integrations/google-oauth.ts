@@ -44,7 +44,30 @@ export async function googleAccessToken(refreshToken: string): Promise<string> {
       grant_type: "refresh_token",
     }),
   });
-  if (!res.ok) throw new Error(`Google token refresh failed: HTTP ${res.status}`);
+  if (!res.ok) {
+    // The body is where Google says what is actually wrong, and the status
+    // alone cannot tell these apart: a refresh token that has expired, a
+    // client id that does not match it, and a client that was never allowed
+    // this grant all come back as 400. Dropping it — which this used to do —
+    // turns a five-second fix into an afternoon.
+    const body = await res.text().catch(() => "");
+    const code = /"error"\s*:\s*"([^"]+)"/.exec(body)?.[1] ?? "";
+
+    if (code === "invalid_grant") {
+      throw new Error(
+        "Google のリフレッシュトークンが失効しています（invalid_grant）。" +
+          "OAuth 同意画面が「テスト」のままだと、発行から7日でトークンが期限切れになります。" +
+          "同意画面を「本番」に切り替えるか、pnpm calendar:get-token で取り直してください。"
+      );
+    }
+    if (code === "invalid_client") {
+      throw new Error(
+        "Google の client_id / client_secret が一致していません（invalid_client）。" +
+          "そのリフレッシュトークンを発行したOAuthクライアントと同じものか確認してください。"
+      );
+    }
+    throw new Error(`Google token refresh failed: HTTP ${res.status}${code ? ` (${code})` : ""} ${body.slice(0, 200)}`);
+  }
 
   const data = (await res.json()) as { access_token: string; expires_in: number };
   tokenCache.set(refreshToken, {

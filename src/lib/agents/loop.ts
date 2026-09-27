@@ -131,17 +131,31 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<AgentLoopRe
   // Started, not waited for: the user is otherwise sitting through a round
   // trip to Neon before the model is even asked, and nothing until finish()
   // needs the row's id.
+  // Started, not waited for — but its failure is caught here rather than
+  // left for finish() to discover. An unawaited promise that rejects while
+  // the model call is in flight is an unhandled rejection, which on this
+  // runtime takes the whole function down; and bookkeeping failing is never
+  // a reason to lose the answer, so a missing row just means nothing to
+  // update at the end.
   const runRow = db
     .insert(agentRuns)
     .values({ agentRole: "main", status: "running", steps: [] })
-    .returning();
+    .returning()
+    .then(
+      (rows) => rows[0] ?? null,
+      (err) => {
+        console.error("Agent run row could not be created:", err);
+        return null;
+      }
+    );
 
   const messages: LLMMessage[] = [...params.messages];
   const steps: RecordedStep[] = [];
   let finalText = "";
 
   const finish = async (status: "succeeded" | "failed" | "timed_out") => {
-    const [run] = await runRow;
+    const run = await runRow;
+    if (!run) return;
     const totals = costTracker.totals;
     await db
       .update(agentRuns)
