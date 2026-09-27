@@ -210,6 +210,14 @@ media, which is a lot of setup for little a personal agent can use.
      one-time setup (`pnpm calendar:get-token`), including how to add a
      second account as `GOOGLE_CALENDAR_REFRESH_TOKEN_2`. Without these,
      calendar questions just get told it's not connected.
+
+   Refresh tokens are minted with `pnpm google:token <calendar|gmail|drive>
+   [account number]`, which picks the right scopes, prints the right variable
+   name, and tells you which Google account you actually authorized — the
+   mistake worth catching with two accounts in play. **If the OAuth consent
+   screen is left in Testing, Google expires every refresh token after seven
+   days**, and all three integrations go quiet together; publishing the
+   consent screen is what stops that recurring.
    - `ELEVENLABS_API_KEY`/`ELEVENLABS_VOICE_ID` — optional; the voice the
      home screen answers in. Unset, it uses the browser's own speech
      synthesis instead, and it falls back to that whenever ElevenLabs fails
